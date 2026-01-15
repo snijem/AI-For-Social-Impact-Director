@@ -1,0 +1,23 @@
+{
+  "devFiles": [],
+  "ampDevFiles": [],
+  "polyfillFiles": [],
+  "lowPriorityFiles": [],
+  "rootMainFiles": [],
+  "pages": {
+    "/_error": [
+      "static/chunks/6f817_next_dist_compiled_c311f2e1._.js",
+      "static/chunks/6f817_next_dist_shared_lib_aa936fb8._.js",
+      "static/chunks/6f817_next_dist_client_17bdab56._.js",
+      "static/chunks/6f817_next_dist_357ca67e._.js",
+      "static/chunks/6f817_next_error_365b0664.js",
+      "static/chunks/[next]_entry_page-loader_ts_dfa58bdf._.js",
+      "static/chunks/6f817_react-dom_ce1d7086._.js",
+      "static/chunks/6f817_8c6cd316._.js",
+      "static/chunks/[root-of-the-server]__16a6afd6._.js",
+      "static/chunks/ai-for-social-impact-director_pages__error_2da965e7._.js",
+      "static/chunks/turbopack-ai-for-social-impact-director_pages__error_2f1a96b9._.js"
+    ]
+  },
+  "ampFirstPages": []
+}

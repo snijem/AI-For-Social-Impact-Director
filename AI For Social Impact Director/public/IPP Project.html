@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI For Social Impact : AI Youth Directors</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(to bottom right, #dcfce7, #cffafe, #dbeafe);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Earth emojis background */
+        .earth-bg {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
+        .earth-emoji {
+            position: absolute;
+            font-size: 3rem;
+            animation: bounce 4s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        /* Countdown timer */
+        .countdown {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .countdown-title {
+            font-size: 0.75rem;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .countdown-time {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .countdown-item {
+            font-weight: 700;
+        }
+
+        .countdown-separator {
+            color: rgba(107, 114, 128, 0.6);
+        }
+
+        /* Main content */
+        .container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .content {
+            text-align: center;
+            max-width: 42rem;
+        }
+
+        /* Logos */
+        .logos {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo {
+            height: 5rem;
+            object-fit: contain;
+        }
+
+        /* Title */
+        .title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .title-line1 {
+            color: #9333ea;
+        }
+
+        .title-colon {
+            color: #2563eb;
+        }
+
+        .title-line2 {
+            color: #db2777;
+        }
+
+        /* Subtitle */
+        .subtitle {
+            font-size: 1.125rem;
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+        }
+
+        .description {
+            font-size: 1.25rem;
+            color: #374151;
+            margin-bottom: 3rem;
+        }
+
+        /* Buttons */
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .button-row {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        @media (min-width: 640px) {
+            .buttons {
+                flex-direction: row;
+            }
+            .button-row {
+                flex-direction: row;
+            }
+            .title {
+                font-size: 3.75rem;
+            }
+            .logo {
+                height: 6rem;
+            }
+        }
+
+        .btn {
+            padding: 1rem 3rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn-primary {
+            background: linear-gradient(to right, #9333ea, #db2777);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 2px solid #1e40af;
+            color: #1e40af;
+        }
+
+        .btn-secondary-light {
+            background: white;
+            border: 2px solid #60a5fa;
+            color: #2563eb;
+        }
+
+        /* Shine animation for title */
+        .title-shine {
+            position: relative;
+            display: inline-block;
+            overflow: hidden;
+        }
+
+        .title-shine::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+            transform: skewX(-20deg);
+            animation: shine 3s infinite;
+            animation-delay: 2s;
+        }
+
+        @keyframes shine {
+            0% { left: -100%; }
+            100% { left: 300%; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Earth emojis background -->
+    <div class="earth-bg">
+        <div class="earth-emoji" style="top: 10%; left: 10%; animation-delay: 0s;">🌍</div>
+        <div class="earth-emoji" style="top: 20%; right: 20%; animation-delay: 1s;">🌎</div>
+        <div class="earth-emoji" style="bottom: 20%; left: 25%; animation-delay: 0.5s;">🌏</div>
+        <div class="earth-emoji" style="bottom: 10%; right: 33%; animation-delay: 1.5s;">🌍</div>
+        <div class="earth-emoji" style="top: 33%; right: 10%; animation-delay: 2s;">🌎</div>
+        <div class="earth-emoji" style="top: 50%; left: 20%; animation-delay: 0.8s;">🌏</div>
+        <div class="earth-emoji" style="top: 25%; left: 33%; animation-delay: 1.2s;">🌍</div>
+        <div class="earth-emoji" style="bottom: 33%; right: 25%; animation-delay: 0.3s;">🌎</div>
+        <div class="earth-emoji" style="top: 75%; left: 50%; animation-delay: 1.8s;">🌏</div>
+        <div class="earth-emoji" style="top: 20%; right: 50%; animation-delay: 0.6s;">🌍</div>
+        <div class="earth-emoji" style="bottom: 20%; left: 67%; animation-delay: 1.4s;">🌎</div>
+    </div>
+
+    <!-- Countdown Timer -->
+    <div class="countdown">
+        <div class="countdown-title">Launch Countdown</div>
+        <div class="countdown-time">
+            <span class="countdown-item" style="color: #60a5fa;">6d</span>
+            <span class="countdown-separator">:</span>
+            <span class="countdown-item" style="color: #eab308;">22h</span>
+            <span class="countdown-separator">:</span>
+            <span class="countdown-item" style="color: #2563eb;">55m</span>
+            <span class="countdown-separator">:</span>
+            <span class="countdown-item" style="color: #16a34a;">31s</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="content">
+            <!-- Logos -->
+            <div class="logos">
+                <img src="./Ureka Logo.png.png" alt="Ureka Logo" class="logo" onerror="this.style.display='none'">
+                <img src="./Unitar Logo.png.png" alt="Unitar Logo" class="logo" onerror="this.style.display='none'">
+            </div>
+
+            <!-- Title -->
+            <h1 class="title title-shine">
+                <span class="title-line1">AI For Social Impact</span>
+                <span class="title-colon"> : </span>
+                <span class="title-line2">AI Youth Directors</span>
+            </h1>
+
+            <!-- Subtitle -->
+            <p class="subtitle">Animated movies are created through AI</p>
+            <p class="description">Create animated movies about Sustainable Development Goals</p>
+
+            <!-- Buttons -->
+            <div class="buttons">
+                <a href="/studio" class="btn btn-primary">Start a Movie 🎬</a>
+                <div class="button-row">
+                    <button class="btn btn-secondary" onclick="alert('📝 Notes Before Starting:\n\n• Write a complete story (at least 60 characters)\n• Include characters with names\n• Describe the setting\n• Show the problem that needs solving\n• Present a solution or positive message\n• Connect to Sustainable Development Goals (SDGs)\n\nReady to create your movie? Click \"Start a Movie\" to begin!')">
+                        Notes before starting 📝
+                    </button>
+                    <a href="/sdgs" class="btn btn-secondary-light">Learn About SDGs 🌍</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Countdown timer functionality
+        function updateCountdown() {
+            const targetDate = new Date('2026-01-20T08:00:00Z'); // UTC time (12:00 PM Dubai)
+            const now = new Date();
+            const difference = targetDate.getTime() - now.getTime();
+
+            if (difference <= 0) {
+                document.querySelector('.countdown').style.display = 'none';
+                return;
+            }
+
+            const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+            const countdownEl = document.querySelector('.countdown-time');
+            countdownEl.innerHTML = `
+                <span class="countdown-item" style="color: #60a5fa;">${days}d</span>
+                <span class="countdown-separator">:</span>
+                <span class="countdown-item" style="color: #eab308;">${String(hours).padStart(2, '0')}h</span>
+                <span class="countdown-separator">:</span>
+                <span class="countdown-item" style="color: #2563eb;">${String(minutes).padStart(2, '0')}m</span>
+                <span class="countdown-separator">:</span>
+                <span class="countdown-item" style="color: #16a34a;">${String(seconds).padStart(2, '0')}s</span>
+            `;
+        }
+
+        // Update countdown every second
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>
+
