@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   // Only use static export for production builds, not in development
   // API routes require server-side rendering, so we disable export in dev
-  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
+  // output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
   trailingSlash: true,
   // Only use basePath in production/export builds, not in development
   basePath: process.env.NODE_ENV === 'production' ? '/IPP-Project' : '',
