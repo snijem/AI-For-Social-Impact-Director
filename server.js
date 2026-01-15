@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
-require('dotenv').config({ path: '.env.local' })
+// Load environment variables silently
+require('dotenv').config({ path: '.env.local', debug: false })
 
 const { connectDB, testConnection, queryDB, isConnected } = require('./lib/db-express')
 
