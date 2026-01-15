@@ -6,7 +6,7 @@ const nextConfig = {
   // output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
   trailingSlash: true,
   // Only use basePath in production/export builds, not in development
-  basePath: process.env.NODE_ENV === 'production' ? '/IPP-Project' : '',
+  // basePath: process.env.NODE_ENV === 'production' ? '/IPP-Project' : '',
   images: {
     unoptimized: true,
   },
