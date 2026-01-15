@@ -29,6 +29,5 @@ dist-ssr
 backend/.env
 /backend/photos
 backend/.env
-package.json
 backend/.env.local
 package-lock.json
