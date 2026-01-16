@@ -602,6 +602,16 @@ export default function Studio() {
               ← Back to Home
             </motion.button>
           </Link>
+          <Link href="/my-results">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
+            >
+              <span>📋</span>
+              <span>My Results</span>
+            </motion.button>
+          </Link>
         </div>
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
@@ -897,6 +907,11 @@ Write your story below:`}
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Watermark */}
+      <div className="fixed bottom-3 right-3 text-xs text-gray-500 opacity-60 pointer-events-none z-50">
+        Made by Salma Abdalla
+      </div>
     </div>
   )
 }

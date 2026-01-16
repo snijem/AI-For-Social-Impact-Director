@@ -13,6 +13,8 @@ export default function SignUp() {
     fullName: '',
     email: '',
     phone: '',
+    age: '',
+    country: '',
     password: '',
     confirmPassword: ''
   })
@@ -54,6 +56,19 @@ export default function SignUp() {
       newErrors.phone = 'Please enter a valid phone number'
     }
 
+    if (!formData.age.trim()) {
+      newErrors.age = 'Age is required'
+    } else {
+      const ageNum = parseInt(formData.age)
+      if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
+        newErrors.age = 'Please enter a valid age (1-150)'
+      }
+    }
+
+    if (!formData.country.trim()) {
+      newErrors.country = 'Country is required'
+    }
+
     if (!formData.password) {
       newErrors.password = 'Password is required'
     } else if (formData.password.length < 8) {
@@ -90,6 +105,8 @@ export default function SignUp() {
           fullName: formData.fullName.trim(),
           email: formData.email.trim().toLowerCase(),
           phone: formData.phone.trim(),
+          age: parseInt(formData.age),
+          country: formData.country.trim(),
           password: formData.password,
         }),
       })
@@ -268,6 +285,54 @@ export default function SignUp() {
               />
               {errors.phone && (
                 <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+              )}
+            </div>
+
+            {/* Age */}
+            <div>
+              <label htmlFor="age" className="block text-sm font-semibold text-gray-700 mb-2">
+                Age *
+              </label>
+              <input
+                type="number"
+                id="age"
+                name="age"
+                value={formData.age}
+                onChange={handleChange}
+                min="1"
+                max="150"
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                  errors.age
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
+                }`}
+                placeholder="Enter your age"
+              />
+              {errors.age && (
+                <p className="mt-1 text-sm text-red-600">{errors.age}</p>
+              )}
+            </div>
+
+            {/* Country */}
+            <div>
+              <label htmlFor="country" className="block text-sm font-semibold text-gray-700 mb-2">
+                Country *
+              </label>
+              <input
+                type="text"
+                id="country"
+                name="country"
+                value={formData.country}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                  errors.country
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
+                }`}
+                placeholder="Enter your country"
+              />
+              {errors.country && (
+                <p className="mt-1 text-sm text-red-600">{errors.country}</p>
               )}
             </div>
 

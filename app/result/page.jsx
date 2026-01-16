@@ -381,6 +381,15 @@ export default function Result() {
               Create Another Movie 🎬
             </motion.button>
           </Link>
+          <Link href="/my-results">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl"
+            >
+              View All My Results 📋
+            </motion.button>
+          </Link>
           <Link href="/">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -392,6 +401,11 @@ export default function Result() {
           </Link>
         </motion.div>
       </motion.div>
+      
+      {/* Watermark */}
+      <div className="fixed bottom-3 right-3 text-xs text-gray-500 opacity-60 pointer-events-none z-50">
+        Made by Salma Abdalla
+      </div>
     </div>
   )
 }

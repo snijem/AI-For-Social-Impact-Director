@@ -30,10 +30,10 @@ export async function POST(req) {
       )
     }
 
-    const { fullName, email, phone, password } = body
+    const { fullName, email, phone, age, country, password } = body
 
     // Validation
-    if (!fullName || !email || !phone || !password) {
+    if (!fullName || !email || !phone || !age || !country || !password) {
       return NextResponse.json(
         { error: 'All fields are required', field: 'general' },
         { status: 400 }
@@ -66,6 +66,23 @@ export async function POST(req) {
       )
     }
 
+    // Age validation
+    const ageNum = parseInt(age)
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 150) {
+      return NextResponse.json(
+        { error: 'Please enter a valid age (1-150)', field: 'age' },
+        { status: 400 }
+      )
+    }
+
+    // Country validation
+    if (!country || country.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Country is required', field: 'country' },
+        { status: 400 }
+      )
+    }
+
     // Check if email already exists
     try {
       const checkEmailQuery = 'SELECT id FROM users WHERE email = ?'
@@ -89,14 +106,16 @@ export async function POST(req) {
     // Insert user into database
     try {
       const insertQuery = `
-        INSERT INTO users (full_name, email, phone, password_hash, created_at, status)
-        VALUES (?, ?, ?, ?, NOW(), 'active')
+        INSERT INTO users (full_name, email, phone, age, country, password_hash, created_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, NOW(), 'active')
       `
       
       const result = await queryDB(insertQuery, [
         fullName.trim(),
         email.toLowerCase().trim(),
         phone.trim(),
+        ageNum,
+        country.trim(),
         passwordHash
       ])
 

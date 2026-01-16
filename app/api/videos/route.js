@@ -84,9 +84,34 @@ export async function POST(req) {
       ]
     )
 
+    const videoId = result.insertId
+
+    // Also save to result_links table if videoUrl is provided
+    if (videoUrl) {
+      try {
+        const title = storyboard?.title || script.split('\n')[0]?.substring(0, 255) || 'Generated Video'
+        const description = storyboard?.summary || script.substring(0, 500) || null
+        
+        await queryDB(
+          `INSERT INTO result_links (user_id, video_id, result_url, title, description, status)
+           VALUES (?, ?, ?, ?, ?, 'active')`,
+          [
+            user.id,
+            videoId,
+            videoUrl.trim(),
+            title,
+            description,
+          ]
+        )
+      } catch (linkError) {
+        // Log error but don't fail the video save
+        console.error('Error saving result link:', linkError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      videoId: result.insertId,
+      videoId: videoId,
     })
   } catch (error) {
     console.error('Error saving video:', error)
