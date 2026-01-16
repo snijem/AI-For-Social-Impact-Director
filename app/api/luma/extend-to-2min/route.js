@@ -489,8 +489,8 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
         // Merge videos
         await mergeVideos(videoUrls, mergedVideoPath);
         
-        // Create URL for merged video
-        mergedVideoUrl = `/merged-videos/${mergedFileName}`;
+        // Create URL for merged video via API route (more reliable than direct public folder access)
+        mergedVideoUrl = `/api/video/${mergedFileName}`;
         
         console.log(`[Luma Extend] Videos merged successfully: ${mergedVideoUrl}`);
       } else {

@@ -717,6 +717,36 @@ Write your story below:`}
               </div>
               
               <div className="mt-4 flex flex-col gap-3">
+                {/* Login Required Message */}
+                {!user && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">🔒</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-yellow-800 mb-1">
+                          Login Required
+                        </p>
+                        <p className="text-sm text-yellow-700 mb-2">
+                          Please log in to generate videos. Your videos will be saved to your account.
+                        </p>
+                        <Link href="/login">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                          >
+                            Go to Login →
+                          </motion.button>
+                        </Link>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500">
                     {script.length} characters
