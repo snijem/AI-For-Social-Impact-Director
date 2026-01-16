@@ -1,6 +1,19 @@
-# AI For Social Impact : AI Youth Directors
+# AI For Social Impact: AI Youth Directors
 
 An interactive web application where students can create AI-generated animated movies about Sustainable Development Goals (SDGs).
+
+## Table of Contents
+
+1. [Features](#features)
+2. [Quick Start](#quick-start)
+3. [What You Need](#what-you-need)
+4. [Installation](#installation)
+5. [Environment Configuration](#environment-configuration)
+6. [Database Setup](#database-setup)
+7. [Running the Application](#running-the-application)
+8. [How It Works](#how-it-works)
+9. [Troubleshooting](#troubleshooting)
+10. [Summary](#summary)
 
 ## Features
 
@@ -11,6 +24,9 @@ An interactive web application where students can create AI-generated animated m
 - 🎥 **Video Merging**: Automatically merges multiple clips into one continuous video
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 - 🎨 **Modern UI**: Beautiful design with Framer Motion animations
+- ✅ **Async Job Processing**: No timeouts - jobs run in background
+- ✅ **Story Context Extraction**: Intelligent storyboard generation
+- ✅ **Database Persistence**: Save and manage your videos
 
 ## Quick Start
 
@@ -19,77 +35,140 @@ An interactive web application where students can create AI-generated animated m
    npm install
    ```
 
-2. **Configure environment variables:**
-   Create `.env.local` file (see [SETUP.md](./SETUP.md) for details)
+2. **Create `.env.local` file** in the project root:
+   ```env
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD="your_password"
+   DB_NAME=signup_db
+   LUMA_API_KEY=your_luma_api_key
+   PORT=3001
+   ```
 
-3. **Start the development server:**
+3. **Open TWO terminal windows** and run BOTH commands:
+
+   **Terminal 1:**
    ```bash
    npm run dev
+   ```
+
+   **Terminal 2:**
+   ```bash
+   npm run server
    ```
 
 4. **Open your browser:**
    Visit [http://localhost:3000](http://localhost:3000)
 
-## Tech Stack
+## What You Need
 
-- **Frontend:** Next.js 14 (App Router), React 18, Tailwind CSS, Framer Motion
-- **Backend:** Next.js API Routes, Express.js (optional)
-- **Database:** MySQL with connection pooling
-- **Video Generation:** Luma Dream Machine API
-- **Authentication:** Session-based with bcrypt password hashing
+- **Node.js 16+** - [Download here](https://nodejs.org/)
+- **MySQL Server** - [Download MySQL](https://dev.mysql.com/downloads/installer/) or [XAMPP](https://www.apachefriends.org/)
+- **Luma API Key** - Get from [Luma AI](https://lumalabs.ai/)
+- **FFmpeg** (optional) - Only needed if you want to merge multiple video clips into one
 
-## Documentation
+## Installation
 
-- **[SETUP.md](./SETUP.md)** - Complete setup and configuration guide
-- **[README.md](./README.md)** - This file
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-## Project Structure
+2. **Install FFmpeg (optional):**
+   - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+   - **Mac**: `brew install ffmpeg`
+   - **Linux**: `sudo apt install ffmpeg`
+   
+   > ⚠️ **Note:** FFmpeg is optional. Without it, you'll only see the first video clip instead of a merged video.
 
+## Environment Configuration
+
+Create a file named `.env.local` in the project root folder with this content:
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD="your_mysql_password"
+DB_NAME=signup_db
+LUMA_API_KEY=your_luma_api_key
+PORT=3001
 ```
-AI For Social Impact Director/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes
-│   ├── login/             # Login page
-│   ├── signup/            # Signup page
-│   ├── studio/            # Video creation studio
-│   ├── result/            # Video result page
-│   └── sdgs/              # SDGs information page
-├── components/            # React components
-├── contexts/              # React contexts (Auth)
-├── lib/                   # Utility libraries
-│   ├── db.js             # Database connection (Next.js)
-│   ├── db-express.js     # Database connection (Express)
-│   ├── auth.js           # Authentication utilities
-│   ├── video-worker.js   # Video generation worker
-│   └── video-merger.js   # Video merging utility
-├── database/              # SQL schema files
-├── public/                # Static assets
-└── server.js              # Express server (optional)
+
+**Important:**
+- Replace `your_mysql_password` with your actual MySQL password
+- Replace `your_luma_api_key` with your actual Luma API key
+- If your password has special characters like `$`, use double quotes: `DB_PASSWORD="password$here"`
+- After creating or changing `.env.local`, restart both servers
+
+## Database Setup
+
+**The database sets itself up automatically!** 
+
+Just make sure:
+1. MySQL is running on your computer
+2. Your `.env.local` file has the correct MySQL password
+
+The app will create all needed tables the first time you use it. No manual setup needed!
+
+## Running the Application
+
+**You MUST run BOTH servers in separate terminals:**
+
+### Step 1: Open Terminal 1
+```bash
+npm run dev
 ```
+✅ This starts the frontend on `http://localhost:3000`
+
+### Step 2: Open Terminal 2
+```bash
+npm run server
+```
+✅ This starts the backend on `http://localhost:3001`
+
+**Both terminals must stay open while using the app!**
+
+> 💡 **Tip:** Use `npm run server:dev` in Terminal 2 for auto-reload on code changes
+
+
 
 ## How It Works
 
-1. **Sign Up/Login:** Create an account or log in
-2. **Write Script:** Go to Script Studio and write your story (minimum 60 characters)
-3. **Generate Video:** Click "Generate Animation" to create your video
-4. **Watch Progress:** See real-time progress as your video is generated
-5. **View Result:** Watch your completed video on the result page
+1. **Sign Up/Login** - Create an account
+2. **Write Script** - Write your story (at least 60 characters)
+3. **Generate Video** - Click "Generate Animation"
+4. **Watch Progress** - See your video being created in real-time
+5. **View Result** - Watch your completed video!
 
-## Build for Production
+## Troubleshooting
 
-```bash
-npm run build
-npm start
-```
+### Can't connect to database?
+- Make sure MySQL is running
+- Check your password in `.env.local` is correct
+- Restart both servers after changing `.env.local`
 
-## Requirements
+### Video generation not working?
+- Check your `LUMA_API_KEY` in `.env.local` is correct
+- Make sure you have credits in your Luma account
+- Restart both servers after changing `.env.local`
 
-- Node.js 16+
-- MySQL server
-- FFmpeg (optional, for video merging)
-- Luma API key (for video generation)
+### Port already in use?
+- Close other programs using ports 3000 or 3001
+- Or change the port in `.env.local` (for port 3001)
 
-## License
+### Need more help?
+- Check the server console for error messages
+- Make sure both `npm run dev` and `npm run server` are running
+- Verify all settings in `.env.local` are correct
 
-Private project
+## Summary
 
+**To run this app, you need:**
+1. ✅ Install dependencies: `npm install`
+2. ✅ Create `.env.local` with your database and API keys
+3. ✅ Run **TWO terminals**: `npm run dev` AND `npm run server`
+4. ✅ Open browser to `http://localhost:3000`
+
+That's it! 🎉
