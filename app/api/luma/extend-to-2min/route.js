@@ -1,20 +1,74 @@
 import { NextResponse } from "next/server";
 import path from 'path'
 import fs from 'fs/promises'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 
 export const dynamic = 'force-dynamic'
 // Allow long-running requests (up to 10 minutes for 7 clips)
 export const maxDuration = 600 // 10 minutes in seconds
 export const runtime = 'nodejs' // Ensure Node.js runtime for long operations
 
+const execAsync = promisify(exec)
+
 const LUMA_API_BASE = 'https://api.lumalabs.ai/dream-machine/v1'
-const DURATION_PER_GENERATION = 9 // 9 seconds per clip
+const DURATION_PER_GENERATION = 9 // 9 seconds per clip (estimated, actual may vary)
 const TARGET_SECONDS = 60 // 1 minute target (60 seconds)
+const TARGET_MAX_SECONDS = 65 // Stop if we exceed this (just a bit over 1 minute)
 const MAX_CLIPS = Math.ceil(TARGET_SECONDS / DURATION_PER_GENERATION) // 60 / 9 = 7 clips (63 seconds total)
 const DEFAULT_MODEL = 'ray-flash-2' // Cheaper model
 const DEFAULT_RESOLUTION = '540p' // Cheapest resolution
 const COST_PER_CLIP = 0.25 // $0.25 per clip (ray-flash-2, 540p, 9s)
 const MAX_BUDGET = 2.00 // $2 maximum budget
+
+/**
+ * Get the actual duration of a video file using ffprobe
+ * @param {string} videoUrl - URL of the video
+ * @returns {Promise<number>} Duration in seconds
+ */
+async function getVideoDuration(videoUrl) {
+  try {
+    // Download video temporarily to get duration
+    const tempDir = path.join(process.cwd(), 'tmp', 'videos')
+    await fs.mkdir(tempDir, { recursive: true })
+    const tempPath = path.join(tempDir, `duration_check_${Date.now()}.mp4`)
+    
+    try {
+      // Download video
+      const response = await fetch(videoUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to download video: ${response.statusText}`)
+      }
+      const buffer = await response.arrayBuffer()
+      await fs.writeFile(tempPath, Buffer.from(buffer))
+      
+      // Use ffprobe to get duration
+      const escapedPath = tempPath.replace(/\\/g, '/').replace(/'/g, "'\\''")
+      const ffprobeCommand = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${escapedPath}"`
+      
+      const { stdout } = await execAsync(ffprobeCommand)
+      const duration = parseFloat(stdout.trim())
+      
+      // Cleanup
+      await fs.unlink(tempPath).catch(() => {})
+      
+      if (isNaN(duration) || duration <= 0) {
+        console.warn(`[Luma Extend] Invalid duration from ffprobe: ${duration}, using estimated ${DURATION_PER_GENERATION}s`)
+        return DURATION_PER_GENERATION
+      }
+      
+      console.log(`[Luma Extend] Video duration: ${duration.toFixed(2)}s (from ${videoUrl})`)
+      return duration
+    } catch (error) {
+      // Cleanup on error
+      await fs.unlink(tempPath).catch(() => {})
+      throw error
+    }
+  } catch (error) {
+    console.warn(`[Luma Extend] Failed to get video duration: ${error.message}, using estimated ${DURATION_PER_GENERATION}s`)
+    return DURATION_PER_GENERATION // Fallback to estimated duration
+  }
+}
 
 /**
  * Poll for generation completion
@@ -318,13 +372,20 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
     costPerClip: COST_PER_CLIP,
   });
 
-  // Generate clips until we reach 1 minute or max clips
+  // Generate clips until we reach just over 1 minute (60-65 seconds) or max clips
+  // Check actual duration before each iteration to avoid going too far over
   while (totalSeconds < TARGET_SECONDS && iteration < MAX_CLIPS) {
     iteration++;
     estimatedCost = iteration * COST_PER_CLIP;
     
+    // Check if we should continue (safety check before starting new generation)
+    if (totalSeconds >= TARGET_MAX_SECONDS) {
+      console.log(`[Luma Extend] Already at or above maximum duration (${totalSeconds.toFixed(2)}s >= ${TARGET_MAX_SECONDS}s), stopping`);
+      break;
+    }
+    
     console.log(`[Luma Extend] ===== Starting Generation ${iteration}/${MAX_CLIPS} =====`);
-    console.log(`[Luma Extend] Current progress: ${totalSeconds}s / ${TARGET_SECONDS}s`);
+    console.log(`[Luma Extend] Current progress: ${totalSeconds.toFixed(2)}s / ${TARGET_SECONDS}s (max: ${TARGET_MAX_SECONDS}s)`);
     console.log(`[Luma Extend] Estimated cost: $${estimatedCost.toFixed(2)}`);
     console.log(`[Luma Extend] Previous generation ID: ${previousGenerationId || 'none (first clip)'}`);
 
@@ -391,24 +452,39 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
       }
 
         const videoUrl = pollResult.videoUrl;
+        
+        // Get actual video duration
+        console.log(`[Luma Extend] Getting actual duration for clip ${iteration}...`);
+        const actualDuration = await getVideoDuration(videoUrl);
+        
         const newGeneration = {
           id: generationId,
           videoUrl: videoUrl,
-          seconds: DURATION_PER_GENERATION,
+          seconds: actualDuration, // Use actual duration instead of estimated
           iteration: iteration,
         };
         
+        // Check if this video URL is a duplicate
+        const isDuplicate = generations.some(g => g.videoUrl === videoUrl);
+        if (isDuplicate) {
+          console.warn(`[Luma Extend] WARNING: Generation ${iteration} has duplicate video URL: ${videoUrl}`);
+          console.warn(`[Luma Extend] Previous generations:`, generations.map(g => ({ id: g.id, url: g.videoUrl })));
+        }
+        
         generations.push(newGeneration);
-        totalSeconds += DURATION_PER_GENERATION;
+        totalSeconds += actualDuration; // Add actual duration to total
         previousGenerationId = generationId;
 
-        console.log(`[Luma Extend] Generation ${iteration} completed: ${videoUrl}`);
-        console.log(`[Luma Extend] Progress: ${totalSeconds}s / ${TARGET_SECONDS}s`);
-        console.log(`[Luma Extend] Previous generation ID for next clip: ${previousGenerationId}`);
+        console.log(`[Luma Extend] Generation ${iteration} completed:`);
+        console.log(`[Luma Extend]   Generation ID: ${generationId}`);
+        console.log(`[Luma Extend]   Video URL: ${videoUrl}`);
+        console.log(`[Luma Extend]   Actual duration: ${actualDuration.toFixed(2)}s`);
+        console.log(`[Luma Extend]   Total duration so far: ${totalSeconds.toFixed(2)}s / ${TARGET_SECONDS}s`);
+        console.log(`[Luma Extend]   Previous generation ID for next clip: ${previousGenerationId}`);
 
       sendProgress({
         type: 'clip_complete',
-        message: `Clip ${iteration} completed! Starting next clip...`,
+        message: `Clip ${iteration} completed (${actualDuration.toFixed(1)}s)! Total: ${totalSeconds.toFixed(1)}s`,
         current: iteration,
         total: MAX_CLIPS,
         totalSeconds: totalSeconds,
@@ -417,9 +493,19 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
         clip: newGeneration,
       });
 
-        // If we've reached target, stop
+        // Check if we've reached the target (just over 1 minute)
         if (totalSeconds >= TARGET_SECONDS) {
-          console.log(`[Luma Extend] Target reached: ${totalSeconds}s`);
+          if (totalSeconds > TARGET_MAX_SECONDS) {
+            console.warn(`[Luma Extend] Total duration (${totalSeconds.toFixed(2)}s) exceeds max (${TARGET_MAX_SECONDS}s), but continuing...`);
+          } else {
+            console.log(`[Luma Extend] Target reached: ${totalSeconds.toFixed(2)}s (within ${TARGET_SECONDS}-${TARGET_MAX_SECONDS}s range)`);
+            break;
+          }
+        }
+        
+        // Also stop if we exceed the maximum to avoid going too far over
+        if (totalSeconds > TARGET_MAX_SECONDS) {
+          console.log(`[Luma Extend] Maximum duration exceeded: ${totalSeconds.toFixed(2)}s > ${TARGET_MAX_SECONDS}s, stopping generation`);
           break;
         }
 
@@ -448,7 +534,12 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
       }
     }
 
-    console.log(`[Luma Extend] Loop completed. Total generations: ${generations.length}, Total seconds: ${totalSeconds}`);
+    // Log completion with actual durations
+    const calculatedTotal = generations.reduce((sum, g) => sum + (g.seconds || 0), 0);
+    console.log(`[Luma Extend] Loop completed. Total generations: ${generations.length}, Total actual duration: ${calculatedTotal.toFixed(2)}s`);
+    console.log(`[Luma Extend] Target was ${TARGET_SECONDS}s, achieved ${calculatedTotal.toFixed(2)}s (${((calculatedTotal / TARGET_SECONDS) * 100).toFixed(1)}% of target)`);
+    // Update totalSeconds to match calculated total (in case of rounding differences)
+    totalSeconds = calculatedTotal;
 
   // Calculate final cost
   const finalCost = generations.length * COST_PER_CLIP;
@@ -457,8 +548,29 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
   let mergedVideoUrl = null;
   const videoUrls = generations.map(g => g.videoUrl).filter(url => url);
   
-  if (videoUrls.length > 1) {
-    console.log(`[Luma Extend] Merging ${videoUrls.length} clips into one continuous video...`);
+  // Log all video URLs for debugging
+  console.log(`[Luma Extend] Collected ${videoUrls.length} video URLs for merging:`);
+  videoUrls.forEach((url, index) => {
+    console.log(`[Luma Extend]   Clip ${index + 1}: ${url}`);
+  });
+  
+  // Check for duplicate URLs
+  const uniqueUrls = [...new Set(videoUrls)];
+  if (uniqueUrls.length < videoUrls.length) {
+    console.warn(`[Luma Extend] WARNING: Found ${videoUrls.length - uniqueUrls.length} duplicate video URLs!`);
+    console.warn(`[Luma Extend] Using only ${uniqueUrls.length} unique clips instead of ${videoUrls.length}`);
+    
+    // If all videos are the same, this is a problem
+    if (uniqueUrls.length === 1) {
+      console.error(`[Luma Extend] ERROR: All ${videoUrls.length} clips have the same video URL!`);
+      console.error(`[Luma Extend] This suggests the keyframe extension is not working properly.`);
+      console.error(`[Luma Extend] Video URL: ${uniqueUrls[0]}`);
+      throw new Error(`All generated clips have the same video URL. The keyframe extension may not be working correctly.`);
+    }
+  }
+  
+  if (uniqueUrls.length > 1) {
+    console.log(`[Luma Extend] Merging ${uniqueUrls.length} unique clips into one continuous video...`);
     sendProgress({
       type: 'progress',
       message: 'Merging clips into final video...',
@@ -486,8 +598,8 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
         const mergedFileName = `merged_${mergeId}.mp4`;
         const mergedVideoPath = path.join(outputDir, mergedFileName);
         
-        // Merge videos
-        await mergeVideos(videoUrls, mergedVideoPath);
+        // Merge videos (use unique URLs only)
+        await mergeVideos(uniqueUrls, mergedVideoPath);
         
         // Create URL for merged video via API route (more reliable than direct public folder access)
         mergedVideoUrl = `/api/video/${mergedFileName}`;
@@ -495,24 +607,29 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
         console.log(`[Luma Extend] Videos merged successfully: ${mergedVideoUrl}`);
       } else {
         console.warn(`[Luma Extend] FFmpeg not available, using first video as fallback`);
-        mergedVideoUrl = videoUrls[0];
+        mergedVideoUrl = uniqueUrls[0] || videoUrls[0];
       }
     } catch (mergeError) {
       console.error(`[Luma Extend] Error merging videos:`, mergeError);
       console.warn(`[Luma Extend] Using first video as fallback due to merge error`);
-      mergedVideoUrl = videoUrls[0];
+      mergedVideoUrl = uniqueUrls[0] || videoUrls[0];
     }
+  } else if (uniqueUrls.length === 1) {
+    mergedVideoUrl = uniqueUrls[0];
   } else if (videoUrls.length === 1) {
     mergedVideoUrl = videoUrls[0];
   }
   
+  // Calculate actual total duration from all clips
+  const actualTotalDuration = generations.reduce((sum, g) => sum + (g.seconds || 0), 0);
+  
   // Send final result with merged video URL
   sendProgress({
     type: 'complete',
-    message: `Generated ${generations.length} clips totaling ${totalSeconds} seconds${mergedVideoUrl && videoUrls.length > 1 ? ' (merged into one video)' : ''}`,
+    message: `Generated ${generations.length} clips totaling ${actualTotalDuration.toFixed(1)} seconds${mergedVideoUrl && uniqueUrls.length > 1 ? ' (merged into one video)' : ''}`,
     current: generations.length,
     total: MAX_CLIPS,
-    totalSeconds: totalSeconds,
+    totalSeconds: actualTotalDuration, // Use actual duration
     estimatedCost: finalCost,
     totalCost: finalCost,
     generations: generations,
