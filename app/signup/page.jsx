@@ -12,6 +12,7 @@ export default function SignUp() {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    countryCode: '+971',
     phone: '',
     age: '',
     country: '',
@@ -37,6 +38,61 @@ export default function SignUp() {
     }
   }
 
+  const handleAgeChange = (e) => {
+    const value = e.target.value
+    // Only allow digits, no scientific notation (e, E, +, -, .)
+    const numericValue = value.replace(/[^0-9]/g, '')
+    
+    // If empty, allow it (user might be deleting)
+    if (numericValue === '') {
+      setFormData(prev => ({
+        ...prev,
+        age: ''
+      }))
+      if (errors.age) {
+        setErrors(prev => ({
+          ...prev,
+          age: ''
+        }))
+      }
+      return
+    }
+    
+    // Convert to number and validate range
+    const ageNum = parseInt(numericValue)
+    
+    // If the number is valid and within range (1-150), allow it
+    if (!isNaN(ageNum) && ageNum >= 1 && ageNum <= 150) {
+      // Limit to 3 digits max
+      const limitedValue = numericValue.slice(0, 3)
+      setFormData(prev => ({
+        ...prev,
+        age: limitedValue
+      }))
+    } else if (ageNum > 150) {
+      // If over 150, cap it at 150
+      setFormData(prev => ({
+        ...prev,
+        age: '150'
+      }))
+    } else if (numericValue.length <= 3) {
+      // Allow typing if it's still being entered (might become valid)
+      // But only if it's 3 digits or less
+      setFormData(prev => ({
+        ...prev,
+        age: numericValue.slice(0, 3)
+      }))
+    }
+    
+    // Clear error when user starts typing
+    if (errors.age) {
+      setErrors(prev => ({
+        ...prev,
+        age: ''
+      }))
+    }
+  }
+
   const validateForm = () => {
     const newErrors = {}
 
@@ -54,6 +110,8 @@ export default function SignUp() {
       newErrors.phone = 'Phone number is required'
     } else if (!/^[\d\s\-\+\(\)]+$/.test(formData.phone)) {
       newErrors.phone = 'Please enter a valid phone number'
+    } else if (formData.phone.replace(/\D/g, '').length < 6) {
+      newErrors.phone = 'Phone number must be at least 6 digits'
     }
 
     if (!formData.age.trim()) {
@@ -104,7 +162,7 @@ export default function SignUp() {
         body: JSON.stringify({
           fullName: formData.fullName.trim(),
           email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim(),
+          phone: `${formData.countryCode}${formData.phone.trim()}`,
           age: parseInt(formData.age),
           country: formData.country.trim(),
           password: formData.password,
@@ -270,19 +328,110 @@ export default function SignUp() {
               <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
                 Phone Number *
               </label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                  errors.phone
-                    ? 'border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
-                }`}
-                placeholder="+1 (555) 123-4567"
-              />
+              <div className="flex gap-2">
+                <select
+                  id="countryCode"
+                  name="countryCode"
+                  value={formData.countryCode}
+                  onChange={handleChange}
+                  className={`px-3 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.phone
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
+                  }`}
+                  style={{ width: '120px', flexShrink: 0 }}
+                >
+                  <option value="+1">🇺🇸 +1</option>
+                  <option value="+44">🇬🇧 +44</option>
+                  <option value="+33">🇫🇷 +33</option>
+                  <option value="+49">🇩🇪 +49</option>
+                  <option value="+39">🇮🇹 +39</option>
+                  <option value="+34">🇪🇸 +34</option>
+                  <option value="+31">🇳🇱 +31</option>
+                  <option value="+32">🇧🇪 +32</option>
+                  <option value="+41">🇨🇭 +41</option>
+                  <option value="+43">🇦🇹 +43</option>
+                  <option value="+46">🇸🇪 +46</option>
+                  <option value="+47">🇳🇴 +47</option>
+                  <option value="+45">🇩🇰 +45</option>
+                  <option value="+358">🇫🇮 +358</option>
+                  <option value="+48">🇵🇱 +48</option>
+                  <option value="+351">🇵🇹 +351</option>
+                  <option value="+30">🇬🇷 +30</option>
+                  <option value="+353">🇮🇪 +353</option>
+                  <option value="+64">🇳🇿 +64</option>
+                  <option value="+61">🇦🇺 +61</option>
+                  <option value="+81">🇯🇵 +81</option>
+                  <option value="+82">🇰🇷 +82</option>
+                  <option value="+86">🇨🇳 +86</option>
+                  <option value="+91">🇮🇳 +91</option>
+                  <option value="+65">🇸🇬 +65</option>
+                  <option value="+60">🇲🇾 +60</option>
+                  <option value="+66">🇹🇭 +66</option>
+                  <option value="+62">🇮🇩 +62</option>
+                  <option value="+63">🇵🇭 +63</option>
+                  <option value="+84">🇻🇳 +84</option>
+                  <option value="+971">🇦🇪 +971</option>
+                  <option value="+966">🇸🇦 +966</option>
+                  <option value="+974">🇶🇦 +974</option>
+                  <option value="+965">🇰🇼 +965</option>
+                  <option value="+973">🇧🇭 +973</option>
+                  <option value="+968">🇴🇲 +968</option>
+                  <option value="+20">🇪🇬 +20</option>
+                  <option value="+27">🇿🇦 +27</option>
+                  <option value="+234">🇳🇬 +234</option>
+                  <option value="+254">🇰🇪 +254</option>
+                  <option value="+212">🇲🇦 +212</option>
+                  <option value="+213">🇩🇿 +213</option>
+                  <option value="+216">🇹🇳 +216</option>
+                  <option value="+55">🇧🇷 +55</option>
+                  <option value="+52">🇲🇽 +52</option>
+                  <option value="+54">🇦🇷 +54</option>
+                  <option value="+56">🇨🇱 +56</option>
+                  <option value="+57">🇨🇴 +57</option>
+                  <option value="+51">🇵🇪 +51</option>
+                  <option value="+58">🇻🇪 +58</option>
+                  <option value="+593">🇪🇨 +593</option>
+                  <option value="+90">🇹🇷 +90</option>
+                  <option value="+972">🇮🇱 +972</option>
+                  <option value="+961">🇱🇧 +961</option>
+                  <option value="+962">🇯🇴 +962</option>
+                  <option value="+964">🇮🇶 +964</option>
+                  <option value="+98">🇮🇷 +98</option>
+                  <option value="+92">🇵🇰 +92</option>
+                  <option value="+880">🇧🇩 +880</option>
+                  <option value="+94">🇱🇰 +94</option>
+                  <option value="+977">🇳🇵 +977</option>
+                  <option value="+95">🇲🇲 +95</option>
+                  <option value="+855">🇰🇭 +855</option>
+                  <option value="+856">🇱🇦 +856</option>
+                  <option value="+976">🇲🇳 +976</option>
+                  <option value="+7">🇰🇿 +7</option>
+                  <option value="+998">🇺🇿 +998</option>
+                  <option value="+380">🇺🇦 +380</option>
+                  <option value="+420">🇨🇿 +420</option>
+                  <option value="+36">🇭🇺 +36</option>
+                  <option value="+40">🇷🇴 +40</option>
+                  <option value="+359">🇧🇬 +359</option>
+                  <option value="+385">🇭🇷 +385</option>
+                  <option value="+381">🇷🇸 +381</option>
+                  <option value="+386">🇸🇮 +386</option>
+                  <option value="+421">🇸🇰 +421</option>
+                </select>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className={`flex-1 px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.phone
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
+                  }`}
+                  placeholder="Phone number"
+                />
+              </div>
               {errors.phone && (
                 <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
               )}
@@ -294,13 +443,13 @@ export default function SignUp() {
                 Age *
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 id="age"
                 name="age"
                 value={formData.age}
-                onChange={handleChange}
-                min="1"
-                max="150"
+                onChange={handleAgeChange}
+                maxLength={3}
                 className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all ${
                   errors.age
                     ? 'border-red-500 focus:ring-red-500'
@@ -318,8 +467,7 @@ export default function SignUp() {
               <label htmlFor="country" className="block text-sm font-semibold text-gray-700 mb-2">
                 Country *
               </label>
-              <input
-                type="text"
+              <select
                 id="country"
                 name="country"
                 value={formData.country}
@@ -329,8 +477,88 @@ export default function SignUp() {
                     ? 'border-red-500 focus:ring-red-500'
                     : 'border-gray-300 focus:border-green-500 focus:ring-green-500'
                 }`}
-                placeholder="Enter your country"
-              />
+              >
+                <option value="">Select your country</option>
+                <option value="United States">United States</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="Canada">Canada</option>
+                <option value="Australia">Australia</option>
+                <option value="Germany">Germany</option>
+                <option value="France">France</option>
+                <option value="Italy">Italy</option>
+                <option value="Spain">Spain</option>
+                <option value="Netherlands">Netherlands</option>
+                <option value="Belgium">Belgium</option>
+                <option value="Switzerland">Switzerland</option>
+                <option value="Austria">Austria</option>
+                <option value="Sweden">Sweden</option>
+                <option value="Norway">Norway</option>
+                <option value="Denmark">Denmark</option>
+                <option value="Finland">Finland</option>
+                <option value="Poland">Poland</option>
+                <option value="Portugal">Portugal</option>
+                <option value="Greece">Greece</option>
+                <option value="Ireland">Ireland</option>
+                <option value="New Zealand">New Zealand</option>
+                <option value="Japan">Japan</option>
+                <option value="South Korea">South Korea</option>
+                <option value="China">China</option>
+                <option value="India">India</option>
+                <option value="Singapore">Singapore</option>
+                <option value="Malaysia">Malaysia</option>
+                <option value="Thailand">Thailand</option>
+                <option value="Indonesia">Indonesia</option>
+                <option value="Philippines">Philippines</option>
+                <option value="Vietnam">Vietnam</option>
+                <option value="United Arab Emirates">United Arab Emirates</option>
+                <option value="Saudi Arabia">Saudi Arabia</option>
+                <option value="Qatar">Qatar</option>
+                <option value="Kuwait">Kuwait</option>
+                <option value="Bahrain">Bahrain</option>
+                <option value="Oman">Oman</option>
+                <option value="Egypt">Egypt</option>
+                <option value="South Africa">South Africa</option>
+                <option value="Nigeria">Nigeria</option>
+                <option value="Kenya">Kenya</option>
+                <option value="Morocco">Morocco</option>
+                <option value="Tunisia">Tunisia</option>
+                <option value="Algeria">Algeria</option>
+                <option value="Brazil">Brazil</option>
+                <option value="Mexico">Mexico</option>
+                <option value="Argentina">Argentina</option>
+                <option value="Chile">Chile</option>
+                <option value="Colombia">Colombia</option>
+                <option value="Peru">Peru</option>
+                <option value="Venezuela">Venezuela</option>
+                <option value="Ecuador">Ecuador</option>
+                <option value="Turkey">Turkey</option>
+                <option value="Israel">Israel</option>
+                <option value="Lebanon">Lebanon</option>
+                <option value="Jordan">Jordan</option>
+                <option value="Iraq">Iraq</option>
+                <option value="Iran">Iran</option>
+                <option value="Pakistan">Pakistan</option>
+                <option value="Bangladesh">Bangladesh</option>
+                <option value="Sri Lanka">Sri Lanka</option>
+                <option value="Nepal">Nepal</option>
+                <option value="Myanmar">Myanmar</option>
+                <option value="Cambodia">Cambodia</option>
+                <option value="Laos">Laos</option>
+                <option value="Mongolia">Mongolia</option>
+                <option value="Kazakhstan">Kazakhstan</option>
+                <option value="Uzbekistan">Uzbekistan</option>
+                <option value="Ukraine">Ukraine</option>
+                <option value="Russia">Russia</option>
+                <option value="Czech Republic">Czech Republic</option>
+                <option value="Hungary">Hungary</option>
+                <option value="Romania">Romania</option>
+                <option value="Bulgaria">Bulgaria</option>
+                <option value="Croatia">Croatia</option>
+                <option value="Serbia">Serbia</option>
+                <option value="Slovenia">Slovenia</option>
+                <option value="Slovakia">Slovakia</option>
+                <option value="Other">Other</option>
+              </select>
               {errors.country && (
                 <p className="mt-1 text-sm text-red-600">{errors.country}</p>
               )}
