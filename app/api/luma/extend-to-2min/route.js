@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import path from 'path'
+import fs from 'fs/promises'
 
 export const dynamic = 'force-dynamic'
 // Allow long-running requests (up to 10 minutes for 7 clips)
@@ -6,9 +8,9 @@ export const maxDuration = 600 // 10 minutes in seconds
 export const runtime = 'nodejs' // Ensure Node.js runtime for long operations
 
 const LUMA_API_BASE = 'https://api.lumalabs.ai/dream-machine/v1'
-const MAX_CLIPS = 7 // 7 clips × 9s = 63s (~1 minute)
-const TARGET_SECONDS = 60 // 1 minute target
 const DURATION_PER_GENERATION = 9 // 9 seconds per clip
+const TARGET_SECONDS = 60 // 1 minute target (60 seconds)
+const MAX_CLIPS = Math.ceil(TARGET_SECONDS / DURATION_PER_GENERATION) // 60 / 9 = 7 clips (63 seconds total)
 const DEFAULT_MODEL = 'ray-flash-2' // Cheaper model
 const DEFAULT_RESOLUTION = '540p' // Cheapest resolution
 const COST_PER_CLIP = 0.25 // $0.25 per clip (ray-flash-2, 540p, 9s)
@@ -294,9 +296,9 @@ async function handleRegularRequest(req) {
 
 async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
   console.log('[Luma Extend] Starting 1-minute video generation...');
-  console.log(`[Luma Extend] Target: ${TARGET_SECONDS} seconds (~${MAX_CLIPS} clips)`);
+  console.log(`[Luma Extend] Target: ${TARGET_SECONDS} seconds (${MAX_CLIPS} clips × ${DURATION_PER_GENERATION}s = ${MAX_CLIPS * DURATION_PER_GENERATION}s total)`);
   console.log(`[Luma Extend] Model: ${DEFAULT_MODEL}, Resolution: ${DEFAULT_RESOLUTION}`);
-  console.log(`[Luma Extend] Cost per clip: $${COST_PER_CLIP}, Max budget: $${MAX_BUDGET}`);
+  console.log(`[Luma Extend] Cost per clip: $${COST_PER_CLIP}, Total cost: $${(MAX_CLIPS * COST_PER_CLIP).toFixed(2)}, Max budget: $${MAX_BUDGET}`);
 
   const generations = [];
   let previousGenerationId = null;
@@ -304,13 +306,14 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
   let iteration = 0;
   let estimatedCost = 0;
 
+  const estimatedTotalCost = MAX_CLIPS * COST_PER_CLIP;
   sendProgress({
     type: 'start',
     message: 'Starting 1-minute video generation...',
     current: 0,
     total: MAX_CLIPS,
     totalSeconds: 0,
-    estimatedCost: 0,
+    estimatedCost: estimatedTotalCost,
     maxBudget: MAX_BUDGET,
     costPerClip: COST_PER_CLIP,
   });
@@ -450,20 +453,75 @@ async function generateClipsWithProgress(prompt, lumaApiKey, sendProgress) {
   // Calculate final cost
   const finalCost = generations.length * COST_PER_CLIP;
   
-  // Send final result
+  // Step: Merge all clips into one continuous video
+  let mergedVideoUrl = null;
+  const videoUrls = generations.map(g => g.videoUrl).filter(url => url);
+  
+  if (videoUrls.length > 1) {
+    console.log(`[Luma Extend] Merging ${videoUrls.length} clips into one continuous video...`);
+    sendProgress({
+      type: 'progress',
+      message: 'Merging clips into final video...',
+      current: generations.length,
+      total: MAX_CLIPS,
+      totalSeconds: totalSeconds,
+      estimatedCost: finalCost,
+      status: 'merging',
+    });
+
+    try {
+      // Dynamically import video-merger (server-side only)
+      const { mergeVideos, checkFFmpegAvailable } = await import('@/lib/video-merger');
+      
+      // Check if ffmpeg is available
+      const ffmpegAvailable = await checkFFmpegAvailable();
+      
+      if (ffmpegAvailable) {
+        // Create output directory
+        const outputDir = path.join(process.cwd(), 'public', 'merged-videos');
+        await fs.mkdir(outputDir, { recursive: true });
+        
+        // Generate merged video filename
+        const mergeId = `merge_${Date.now()}`;
+        const mergedFileName = `merged_${mergeId}.mp4`;
+        const mergedVideoPath = path.join(outputDir, mergedFileName);
+        
+        // Merge videos
+        await mergeVideos(videoUrls, mergedVideoPath);
+        
+        // Create URL for merged video
+        mergedVideoUrl = `/merged-videos/${mergedFileName}`;
+        
+        console.log(`[Luma Extend] Videos merged successfully: ${mergedVideoUrl}`);
+      } else {
+        console.warn(`[Luma Extend] FFmpeg not available, using first video as fallback`);
+        mergedVideoUrl = videoUrls[0];
+      }
+    } catch (mergeError) {
+      console.error(`[Luma Extend] Error merging videos:`, mergeError);
+      console.warn(`[Luma Extend] Using first video as fallback due to merge error`);
+      mergedVideoUrl = videoUrls[0];
+    }
+  } else if (videoUrls.length === 1) {
+    mergedVideoUrl = videoUrls[0];
+  }
+  
+  // Send final result with merged video URL
   sendProgress({
     type: 'complete',
-    message: `Generated ${generations.length} clips totaling ${totalSeconds} seconds`,
+    message: `Generated ${generations.length} clips totaling ${totalSeconds} seconds${mergedVideoUrl && videoUrls.length > 1 ? ' (merged into one video)' : ''}`,
     current: generations.length,
     total: MAX_CLIPS,
     totalSeconds: totalSeconds,
     estimatedCost: finalCost,
     totalCost: finalCost,
     generations: generations,
+    mergedVideoUrl: mergedVideoUrl,
+    videoUrl: mergedVideoUrl, // For compatibility
     success: true,
     model: DEFAULT_MODEL,
     resolution: DEFAULT_RESOLUTION,
   });
 
-  return { generations, totalSeconds };
+  return { generations, totalSeconds, mergedVideoUrl };
 }

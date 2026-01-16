@@ -17,7 +17,7 @@ export default function Studio() {
   
   // 1-minute generation state
   const [isGenerating2Min, setIsGenerating2Min] = useState(false)
-  const [twoMinProgress, setTwoMinProgress] = useState({ current: 0, total: 7 })
+  const [twoMinProgress, setTwoMinProgress] = useState({ current: 0, total: Math.ceil(60 / 9) }) // 7 clips for 1 minute
   const [twoMinGenerations, setTwoMinGenerations] = useState([])
   const [twoMinResult, setTwoMinResult] = useState(null)
   const [abortController, setAbortController] = useState(null)
@@ -27,15 +27,9 @@ export default function Studio() {
   
   const router = useRouter()
   
-  // Safely get user from auth context - video generation works without auth
-  let user = null
-  try {
-    const auth = useAuth()
-    user = auth?.user || null
-  } catch (error) {
-    // Auth context not available - continue without user
-    console.warn('Auth context not available, continuing without user')
-  }
+  // Get user from auth context - login required for video generation
+  const auth = useAuth()
+  const user = auth?.user || null
 
   // Analyze script for originality
   const analysis = useMemo(() => {
@@ -97,6 +91,13 @@ export default function Studio() {
 
   const handleGenerate = async () => {
     try {
+      // Check if user is logged in
+      if (!user) {
+        alert('Please log in to generate videos. 🔐')
+        router.push('/login')
+        return
+      }
+
       if (script.trim().length < 60) {
         alert('Please write a longer script! At least 60 characters needed. 📝')
         return
@@ -421,6 +422,13 @@ export default function Studio() {
 
   const handleGenerate2Minutes = async () => {
     try {
+      // Check if user is logged in
+      if (!user) {
+        alert('Please log in to generate videos. 🔐')
+        router.push('/login')
+        return
+      }
+
       if (script.trim().length < 60) {
         alert('Please write a longer script! At least 60 characters needed. 📝')
         return
@@ -431,12 +439,16 @@ export default function Studio() {
         return
       }
 
+      // Calculate exact number of clips for 1 minute (60 seconds / 9 seconds per clip = 7 clips)
+      const clipsFor1Minute = Math.ceil(60 / 9) // 7 clips = 63 seconds
+      const estimatedCost = clipsFor1Minute * COST_PER_CLIP
+      
       setIsGenerating2Min(true)
-      setTwoMinProgress({ current: 0, total: 7 })
+      setTwoMinProgress({ current: 0, total: clipsFor1Minute })
       setTwoMinGenerations([])
       setTwoMinResult(null)
-      setEstimatedCost(0)
-      setStatusMessage('Starting 1-minute video generation...')
+      setEstimatedCost(estimatedCost)
+      setStatusMessage(`Starting 1-minute video generation (${clipsFor1Minute} clips, ${clipsFor1Minute * 9}s total)...`)
 
       // Create AbortController for cancellation
       const controller = new AbortController()
@@ -524,6 +536,33 @@ export default function Studio() {
                   setTwoMinProgress({ current: data.current || data.generations?.length || 0, total: data.total || 7 })
                   setEstimatedCost(data.totalCost || data.estimatedCost || 0)
                   setStatusMessage(`✅ ${data.message || 'Generation complete!'}`)
+                  
+                  // Save merged video to database if user is logged in
+                  if (user && data.mergedVideoUrl) {
+                    try {
+                      await fetch('/api/videos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          script: script,
+                          videoUrl: data.mergedVideoUrl,
+                          generationId: `2min_${Date.now()}`,
+                          status: 'completed',
+                          storyboard: null,
+                          videoData: {
+                            status: 'completed',
+                            video_url: data.mergedVideoUrl,
+                            is_merged: true,
+                            scenes_count: data.generations?.length || 0,
+                            totalSeconds: data.totalSeconds || 0,
+                          },
+                        }),
+                      })
+                    } catch (dbError) {
+                      console.error('Error saving merged video to database:', dbError)
+                    }
+                  }
+                  
                   break // Exit loop when complete
                 } else if (data.type === 'error') {
                   throw new Error(data.error || data.details || 'Generation failed')
@@ -687,8 +726,9 @@ Write your story below:`}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleGenerate}
-                      disabled={isGenerating || isGenerating2Min || !integrityConfirmed}
+                      disabled={!user || isGenerating || isGenerating2Min || !integrityConfirmed}
                       className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!user ? 'Please log in to generate videos' : ''}
                     >
                       {isGenerating ? 'Generating...' : 'Generate (9s) ✨'}
                     </motion.button>
@@ -696,8 +736,9 @@ Write your story below:`}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleGenerate2Minutes}
-                      disabled={isGenerating || isGenerating2Min || !integrityConfirmed}
+                      disabled={!user || isGenerating || isGenerating2Min || !integrityConfirmed}
                       className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!user ? 'Please log in to generate videos' : ''}
                     >
                       {isGenerating2Min ? `Generating clip ${twoMinProgress.current}/${twoMinProgress.total}...` : 'Make it 1 Minute 🎬'}
                     </motion.button>
@@ -708,7 +749,7 @@ Write your story below:`}
                 {!isGenerating2Min && (
                   <div className="text-xs text-gray-600 flex items-center justify-between px-2">
                     <span>Budget: <strong className="text-gray-800">${MAX_BUDGET.toFixed(2)} max</strong></span>
-                    <span>Est. cost: <strong className="text-green-600">${(7 * COST_PER_CLIP).toFixed(2)}</strong> (7 clips × ${COST_PER_CLIP.toFixed(2)})</span>
+                    <span>Est. cost: <strong className="text-green-600">${(1 * COST_PER_CLIP).toFixed(2)}</strong> (1 clip × ${COST_PER_CLIP.toFixed(2)})</span>
                   </div>
                 )}
                 
@@ -762,7 +803,7 @@ Write your story below:`}
                       ✅ 1-Minute Video Generated!
                     </h3>
                     <p className="text-sm text-green-700 mb-3">
-                      {twoMinResult.totalClips} clips • {twoMinResult.totalSeconds} seconds total
+                      {twoMinResult.generations?.length || twoMinResult.totalClips || 0} clips • {twoMinResult.totalSeconds} seconds total
                       {twoMinResult.totalCost && (
                         <span className="ml-2 font-semibold">
                           • Cost: ${twoMinResult.totalCost.toFixed(2)}
@@ -774,30 +815,72 @@ Write your story below:`}
                         Model: {twoMinResult.model} • Resolution: {twoMinResult.resolution || '540p'}
                       </p>
                     )}
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {twoMinGenerations.map((gen, index) => (
-                        <div key={gen.id} className="flex items-center gap-2 p-2 bg-white rounded border">
-                          <span className="text-xs font-semibold text-gray-600 w-8">
-                            #{index + 1}
-                          </span>
+                    
+                    {/* Merged Video */}
+                    {twoMinResult.mergedVideoUrl && (
+                      <div className="mb-4 p-3 bg-white rounded border-2 border-green-300">
+                        <h4 className="font-bold text-green-800 mb-2">🎬 Merged Continuous Video</h4>
+                        <div className="relative w-full aspect-video bg-gray-100 rounded mb-2">
+                          <video
+                            src={twoMinResult.mergedVideoUrl}
+                            controls
+                            className="w-full h-full object-contain"
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                        <div className="flex gap-2">
                           <a
-                            href={gen.videoUrl}
+                            href={twoMinResult.mergedVideoUrl}
+                            download
+                            className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold py-2 px-4 rounded text-center hover:shadow-lg transition-shadow"
+                          >
+                            ⬇️ Download Merged Video
+                          </a>
+                          <a
+                            href={twoMinResult.mergedVideoUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex-1 truncate"
+                            className="bg-gray-100 text-gray-700 font-bold py-2 px-4 rounded text-center hover:bg-gray-200 transition-colors"
                           >
-                            {gen.videoUrl}
-                          </a>
-                          <a
-                            href={gen.videoUrl}
-                            download
-                            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                          >
-                            Download
+                            🔗 Open
                           </a>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
+                    
+                    {/* Individual Clips (collapsed by default) */}
+                    {twoMinGenerations.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800 mb-2">
+                          Show individual clips ({twoMinGenerations.length})
+                        </summary>
+                        <div className="space-y-2 max-h-48 overflow-y-auto mt-2">
+                          {twoMinGenerations.map((gen, index) => (
+                            <div key={gen.id || index} className="flex items-center gap-2 p-2 bg-white rounded border">
+                              <span className="text-xs font-semibold text-gray-600 w-8">
+                                #{index + 1}
+                              </span>
+                              <a
+                                href={gen.videoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex-1 truncate"
+                              >
+                                {gen.videoUrl}
+                              </a>
+                              <a
+                                href={gen.videoUrl}
+                                download
+                                className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     <p className="text-xs text-gray-600 mt-3">
                       💡 Note: Videos are separate clips. Use a video editor to combine them into one 2-minute video.
                     </p>
