@@ -3,8 +3,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { getCurrentUser } from '../../../lib/auth'
-import { queryDB } from '../../../lib/db'
+import { getCurrentUser } from '../../../../lib/auth'
+import { queryDB } from '../../../../lib/db'
 
 export const dynamic = 'force-dynamic'
 // Allow long-running requests (up to 10 minutes for 7 clips)
