@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import RightCenterFloatingActions from '../components/RightCenterFloatingActions'
 
 export default function Home() {
   const { user, logout } = useAuth()
@@ -252,6 +253,9 @@ export default function Home() {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Floating Action Buttons - Right Side */}
+      <RightCenterFloatingActions />
 
       {/* Notes Modal */}
       <AnimatePresence>

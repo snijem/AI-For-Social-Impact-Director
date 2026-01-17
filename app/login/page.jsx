@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function Login() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useAuth()
+  const [redirectPath, setRedirectPath] = useState('/')
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -16,6 +18,14 @@ export default function Login() {
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitMessage, setSubmitMessage] = useState('')
+
+  // Get redirect path from query parameter
+  useEffect(() => {
+    const redirect = searchParams?.get('redirect')
+    if (redirect) {
+      setRedirectPath(redirect)
+    }
+  }, [searchParams])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -65,7 +75,7 @@ export default function Login() {
       if (result.success) {
         setSubmitMessage('Success! Logging in...')
         setTimeout(() => {
-          router.push('/')
+          router.push(redirectPath)
         }, 1000)
       } else {
         setSubmitMessage(result.error || 'Login failed. Please check your credentials.')

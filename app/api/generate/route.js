@@ -37,12 +37,38 @@ export async function POST(req) {
       )
     }
     
-    // Get current user (optional - job can work without auth)
+    // Get current user (required for lives check)
     let user = null
     try {
-      user = await getCurrentUser()
+      user = await getCurrentUser(req)
     } catch (authError) {
       // Continue without user if not authenticated
+    }
+    
+    // Check user's remaining lives if authenticated
+    if (user) {
+      try {
+        const users = await queryDB(
+          'SELECT lives_remaining FROM users WHERE id = ?',
+          [user.id]
+        )
+        
+        if (users && users.length > 0) {
+          const livesRemaining = users[0].lives_remaining ?? 3
+          if (livesRemaining <= 0) {
+            return NextResponse.json(
+              { 
+                error: 'No lives remaining. You have used all 3 lives (each life = $2 budget).',
+                lives_remaining: 0,
+              },
+              { status: 403 }
+            )
+          }
+        }
+      } catch (livesError) {
+        // If column doesn't exist or error, allow generation (graceful degradation)
+        console.error('Error checking lives:', livesError)
+      }
     }
     
     // Generate unique job ID

@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { analyzeScript } from '../../lib/scriptCheck'
 import OriginalityMeter from '../../components/OriginalityMeter'
+import AIPromptsPanel from '../../components/AIPromptsPanel'
+import HeartsLives from '../../components/HeartsLives'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function Studio() {
@@ -15,26 +17,28 @@ export default function Studio() {
   const [statusMessage, setStatusMessage] = useState('')
   const [integrityConfirmed, setIntegrityConfirmed] = useState(false)
   
-  // 1-minute generation state
-  const [isGenerating2Min, setIsGenerating2Min] = useState(false)
-  const [twoMinProgress, setTwoMinProgress] = useState({ current: 0, total: Math.ceil(60 / 9) }) // 7 clips for 1 minute
-  const [twoMinGenerations, setTwoMinGenerations] = useState([])
-  const [twoMinResult, setTwoMinResult] = useState(null)
-  const [abortController, setAbortController] = useState(null)
-  const [estimatedCost, setEstimatedCost] = useState(0)
-  const MAX_BUDGET = 2.00
-  const COST_PER_CLIP = 0.25
+  const [heartsRefreshTrigger, setHeartsRefreshTrigger] = useState(0)
+  const [userLives, setUserLives] = useState(3) // Track user's lives
   
   const router = useRouter()
   
   // Get user from auth context - login required for video generation
   const auth = useAuth()
   const user = auth?.user || null
+  const loading = auth?.loading || false
 
+  // All hooks must be called before any conditional returns
   // Analyze script for originality
   const analysis = useMemo(() => {
     return analyzeScript(script)
   }, [script])
+
+  // Redirect to login if not authenticated (only after loading is complete)
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login?redirect=/studio')
+    }
+  }, [user, loading, router])
 
   // Restore script and checkbox state from localStorage on mount
   useEffect(() => {
@@ -48,37 +52,22 @@ export default function Studio() {
     }
   }, [])
 
-  // Save script and checkbox state to localStorage
-  useEffect(() => {
-    if (script) {
-      localStorage.setItem('studioScript', script)
-    }
-    localStorage.setItem('studioIntegrity', integrityConfirmed.toString())
-  }, [script, integrityConfirmed])
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
-  // Auto-save draft to database (debounced)
-  useEffect(() => {
-    if (!user || !script || script.length < 10) return
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        // Try to update existing draft or create new one
-        await fetch('/api/videos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            script: script,
-            status: 'draft',
-          }),
-        })
-      } catch (error) {
-        console.error('Auto-save error:', error)
-        // Silently fail - auto-save is not critical
-      }
-    }, 3000) // Save after 3 seconds of no typing
-
-    return () => clearTimeout(timeoutId)
-  }, [script, user])
+  // Don't render content if user is not authenticated (will redirect)
+  if (!user) {
+    return null
+  }
 
   const statusMessages = [
     'Casting characters...',
@@ -95,6 +84,12 @@ export default function Studio() {
       if (!user) {
         alert('Please log in to generate videos. 🔐')
         router.push('/login')
+        return
+      }
+
+      // Check if user has remaining lives
+      if (userLives <= 0) {
+        alert('No lives remaining. You have used all 3 lives (each life = $2 budget).')
         return
       }
 
@@ -158,6 +153,16 @@ export default function Studio() {
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json().catch(() => ({}))
+        
+        // Handle no lives remaining error
+        if (createResponse.status === 403 && errorData.error?.includes('No lives remaining')) {
+          alert('No lives remaining. You have used all 3 lives (each life = $2 budget).')
+          setIsGenerating(false)
+          // Refresh lives display
+          setHeartsRefreshTrigger(prev => prev + 1)
+          return
+        }
+        
         throw new Error(errorData.error || 'Failed to create generation job')
       }
 
@@ -254,6 +259,28 @@ export default function Studio() {
 
             setProgress(100)
             setStatusMessage('Generation complete!')
+            
+            // Decrement lives after successful generation
+            if (user) {
+              try {
+                const livesResponse = await fetch('/api/user/lives', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ decrement: 1 }),
+                })
+                
+                if (livesResponse.ok) {
+                  const livesData = await livesResponse.json()
+                  setUserLives(livesData.lives_remaining)
+                  setHeartsRefreshTrigger(prev => prev + 1)
+                }
+              } catch (livesError) {
+                console.error('Error decrementing lives:', livesError)
+                // Don't block the result page if lives decrement fails
+              }
+            }
             
             setTimeout(() => {
               setIsGenerating(false)
@@ -420,196 +447,6 @@ export default function Studio() {
     }
   }
 
-  const handleGenerate2Minutes = async () => {
-    try {
-      // Check if user is logged in
-      if (!user) {
-        alert('Please log in to generate videos. 🔐')
-        router.push('/login')
-        return
-      }
-
-      if (script.trim().length < 60) {
-        alert('Please write a longer script! At least 60 characters needed. 📝')
-        return
-      }
-
-      if (!integrityConfirmed) {
-        alert('Please confirm that this story reflects your own ideas before generating. ✍️')
-        return
-      }
-
-      // Calculate exact number of clips for 1 minute (60 seconds / 9 seconds per clip = 7 clips)
-      const clipsFor1Minute = Math.ceil(60 / 9) // 7 clips = 63 seconds
-      const estimatedCost = clipsFor1Minute * COST_PER_CLIP
-      
-      setIsGenerating2Min(true)
-      setTwoMinProgress({ current: 0, total: clipsFor1Minute })
-      setTwoMinGenerations([])
-      setTwoMinResult(null)
-      setEstimatedCost(estimatedCost)
-      setStatusMessage(`Starting 1-minute video generation (${clipsFor1Minute} clips, ${clipsFor1Minute * 9}s total)...`)
-
-      // Create AbortController for cancellation
-      const controller = new AbortController()
-      setAbortController(controller)
-
-      // Create video prompt from script
-      const videoPrompt = `A 2D animation about Sustainable Development Goals. ${script.substring(0, 500)}. Bright colors, clean animation style, educational and inspiring.`
-
-      // Use Server-Sent Events for real-time progress
-      // Note: No timeout for SSE - let it stream until complete or aborted
-      const response = await fetch('/api/luma/extend-to-2min', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-        body: JSON.stringify({ 
-          prompt: videoPrompt,
-          model: 'ray-flash-2'
-        }),
-        signal: controller.signal, // Add abort signal
-        // No timeout - SSE streams can take 5-10 minutes for 7 clips
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || errorData.details || 'Failed to generate 2-minute video')
-      }
-
-      // Handle Server-Sent Events stream
-      // SSE streams can take 5-10 minutes for 7 clips, so we don't timeout
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let lastDataTime = Date.now()
-
-      try {
-        while (true) {
-          // Check if aborted before reading
-          if (controller.signal.aborted) {
-            console.log('Generation aborted by user')
-            setStatusMessage('⏹️ Generation stopped by user')
-            reader.cancel()
-            break
-          }
-
-          const { done, value } = await reader.read()
-          
-          if (done) {
-            console.log('SSE stream completed')
-            break
-          }
-          
-          // Reset timeout tracker when we receive data
-          lastDataTime = Date.now()
-          
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                
-                // Update progress based on event type
-                if (data.type === 'start') {
-                  setStatusMessage(data.message || 'Starting...')
-                  setTwoMinProgress({ current: data.current || 0, total: data.total || 7 })
-                  setEstimatedCost(data.estimatedCost || 0)
-                } else if (data.type === 'progress') {
-                  setStatusMessage(data.message || `Generating clip ${data.current}...`)
-                  setTwoMinProgress({ current: data.current || 0, total: data.total || 7 })
-                  setEstimatedCost(data.estimatedCost || 0)
-                } else if (data.type === 'clip_complete') {
-                  setStatusMessage(data.message || `Clip ${data.current} completed!`)
-                  setTwoMinProgress({ current: data.current || 0, total: data.total || 7 })
-                  setEstimatedCost(data.estimatedCost || 0)
-                  if (data.clip) {
-                    setTwoMinGenerations(prev => [...prev, data.clip])
-                  }
-                } else if (data.type === 'complete') {
-                  setTwoMinResult(data)
-                  setTwoMinGenerations(data.generations || [])
-                  setTwoMinProgress({ current: data.current || data.generations?.length || 0, total: data.total || 7 })
-                  setEstimatedCost(data.totalCost || data.estimatedCost || 0)
-                  setStatusMessage(`✅ ${data.message || 'Generation complete!'}`)
-                  
-                  // Save merged video to database if user is logged in
-                  if (user && data.mergedVideoUrl) {
-                    try {
-                      await fetch('/api/videos', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          script: script,
-                          videoUrl: data.mergedVideoUrl,
-                          generationId: `2min_${Date.now()}`,
-                          status: 'completed',
-                          storyboard: null,
-                          videoData: {
-                            status: 'completed',
-                            video_url: data.mergedVideoUrl,
-                            is_merged: true,
-                            scenes_count: data.generations?.length || 0,
-                            totalSeconds: data.totalSeconds || 0,
-                          },
-                        }),
-                      })
-                    } catch (dbError) {
-                      console.error('Error saving merged video to database:', dbError)
-                    }
-                  }
-                  
-                  break // Exit loop when complete
-                } else if (data.type === 'error') {
-                  throw new Error(data.error || data.details || 'Generation failed')
-                } else if (data.type === 'ping') {
-                  // Ignore keep-alive pings
-                  continue
-                }
-              } catch (parseError) {
-                console.error('Error parsing SSE data:', parseError, line)
-              }
-            }
-          }
-        }
-      } catch (readError) {
-        // Handle read errors gracefully
-        if (readError.name !== 'AbortError') {
-          console.error('Error reading SSE stream:', readError)
-          throw readError
-        }
-      } finally {
-        reader.releaseLock()
-      }
-
-    } catch (error) {
-      // Don't show error if it was aborted
-      if (error.name === 'AbortError') {
-        console.log('Generation aborted by user')
-        setStatusMessage('⏹️ Generation stopped. You can download the clips generated so far.')
-      } else {
-        console.error('Error generating 2-minute video:', error)
-        setStatusMessage(`❌ Error: ${error.message}`)
-        alert(`Failed to generate 2-minute video: ${error.message}`)
-      }
-    } finally {
-      setIsGenerating2Min(false)
-      setAbortController(null)
-    }
-  }
-
-  const handleStopGeneration = () => {
-    if (abortController) {
-      abortController.abort()
-      setIsGenerating2Min(false)
-      setStatusMessage('⏹️ Generation stopped. You can download the clips generated so far.')
-      setAbortController(null)
-    }
-  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -649,6 +486,16 @@ export default function Studio() {
             >
               <span>📋</span>
               <span>My Results</span>
+            </motion.button>
+          </Link>
+          <Link href="/ai-prompts">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
+            >
+              <span>🤖</span>
+              <span>AI - Prompts</span>
             </motion.button>
           </Link>
         </div>
@@ -756,166 +603,32 @@ Write your story below:`}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleGenerate}
-                      disabled={!user || isGenerating || isGenerating2Min || !integrityConfirmed}
+                      disabled={!user || isGenerating || !integrityConfirmed || userLives <= 0}
                       className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!user ? 'Please log in to generate videos' : ''}
+                      title={
+                        !user 
+                          ? 'Please log in to generate videos' 
+                          : userLives <= 0 
+                            ? 'No lives remaining. You have used all 3 lives (each life = $2 budget).' 
+                            : ''
+                      }
                     >
-                      {isGenerating ? 'Generating...' : 'Generate (9s) ✨'}
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleGenerate2Minutes}
-                      disabled={!user || isGenerating || isGenerating2Min || !integrityConfirmed}
-                      className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={!user ? 'Please log in to generate videos' : ''}
-                    >
-                      {isGenerating2Min ? `Generating clip ${twoMinProgress.current}/${twoMinProgress.total}...` : 'Make it 1 Minute 🎬'}
+                      {isGenerating ? 'Generating...' : userLives <= 0 ? 'No Lives Remaining ❌' : 'Generate (9s) ✨'}
                     </motion.button>
                   </div>
                 </div>
                 
-                {/* Cost estimate before generation */}
-                {!isGenerating2Min && (
+                {/* Lives display before generation */}
+                {user && (
                   <div className="text-xs text-gray-600 flex items-center justify-between px-2">
-                    <span>Budget: <strong className="text-gray-800">${MAX_BUDGET.toFixed(2)} max</strong></span>
-                    <span>Est. cost: <strong className="text-green-600">${(1 * COST_PER_CLIP).toFixed(2)}</strong> (1 clip × ${COST_PER_CLIP.toFixed(2)})</span>
-                  </div>
-                )}
-                
-                {/* 1-minute generation progress */}
-                {isGenerating2Min && (
-                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-blue-800">
-                        Generating 1-minute video...
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-blue-600">
-                          Clip {twoMinProgress.current} / {twoMinProgress.total}
-                        </span>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handleStopGeneration}
-                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow transition-colors"
-                        >
-                          ⏹️ Stop
-                        </motion.button>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">Lives:</span>
+                      <HeartsLives refreshTrigger={heartsRefreshTrigger} />
                     </div>
-                    <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
-                      <motion.div
-                        className="bg-blue-600 h-2 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(twoMinProgress.current / twoMinProgress.total) * 100}%` }}
-                        transition={{ duration: 0.3 }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <p className="text-blue-700">{statusMessage}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-blue-600 font-semibold">
-                          Budget: ${MAX_BUDGET.toFixed(2)} max
-                        </span>
-                        <span className={`font-semibold ${estimatedCost > MAX_BUDGET ? 'text-red-600' : 'text-green-600'}`}>
-                          Est. cost: ${estimatedCost.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
+                    <span className="text-gray-500 text-xs">Each life = $2 budget</span>
                   </div>
                 )}
 
-                {/* 1-minute generation results */}
-                {twoMinResult && !isGenerating2Min && (
-                  <div className="mt-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <h3 className="font-bold text-green-800 mb-2">
-                      ✅ 1-Minute Video Generated!
-                    </h3>
-                    <p className="text-sm text-green-700 mb-3">
-                      {twoMinResult.generations?.length || twoMinResult.totalClips || 0} clips • {twoMinResult.totalSeconds} seconds total
-                      {twoMinResult.totalCost && (
-                        <span className="ml-2 font-semibold">
-                          • Cost: ${twoMinResult.totalCost.toFixed(2)}
-                        </span>
-                      )}
-                    </p>
-                    {twoMinResult.model && (
-                      <p className="text-xs text-gray-600 mb-2">
-                        Model: {twoMinResult.model} • Resolution: {twoMinResult.resolution || '540p'}
-                      </p>
-                    )}
-                    
-                    {/* Merged Video */}
-                    {twoMinResult.mergedVideoUrl && (
-                      <div className="mb-4 p-3 bg-white rounded border-2 border-green-300">
-                        <h4 className="font-bold text-green-800 mb-2">🎬 Merged Continuous Video</h4>
-                        <div className="relative w-full aspect-video bg-gray-100 rounded mb-2">
-                          <video
-                            src={twoMinResult.mergedVideoUrl}
-                            controls
-                            className="w-full h-full object-contain"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        </div>
-                        <div className="flex gap-2">
-                          <a
-                            href={twoMinResult.mergedVideoUrl}
-                            download
-                            className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold py-2 px-4 rounded text-center hover:shadow-lg transition-shadow"
-                          >
-                            ⬇️ Download Merged Video
-                          </a>
-                          <a
-                            href={twoMinResult.mergedVideoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-gray-100 text-gray-700 font-bold py-2 px-4 rounded text-center hover:bg-gray-200 transition-colors"
-                          >
-                            🔗 Open
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Individual Clips (collapsed by default) */}
-                    {twoMinGenerations.length > 0 && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800 mb-2">
-                          Show individual clips ({twoMinGenerations.length})
-                        </summary>
-                        <div className="space-y-2 max-h-48 overflow-y-auto mt-2">
-                          {twoMinGenerations.map((gen, index) => (
-                            <div key={gen.id || index} className="flex items-center gap-2 p-2 bg-white rounded border">
-                              <span className="text-xs font-semibold text-gray-600 w-8">
-                                #{index + 1}
-                              </span>
-                              <a
-                                href={gen.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline flex-1 truncate"
-                              >
-                                {gen.videoUrl}
-                              </a>
-                              <a
-                                href={gen.videoUrl}
-                                download
-                                className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                              >
-                                Download
-                              </a>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                    <p className="text-xs text-gray-600 mt-3">
-                      💡 Note: Videos are separate clips. Use a video editor to combine them into one 2-minute video.
-                    </p>
-                  </div>
-                )}
               </div>
             </motion.div>
           </div>
@@ -926,7 +639,7 @@ Write your story below:`}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl shadow-lg p-6 h-full"
+              className="bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl shadow-lg p-6"
             >
               <h2 className="text-2xl font-bold mb-4 text-gray-800">Storytelling Tips 💡</h2>
               <ul className="space-y-3 text-gray-700">
@@ -973,6 +686,9 @@ Write your story below:`}
                 </ul>
               </div>
             </motion.div>
+            
+            {/* AI Prompts Panel */}
+            <AIPromptsPanel />
           </div>
         </div>
       </div>

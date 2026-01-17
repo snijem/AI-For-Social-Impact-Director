@@ -3,6 +3,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { getCurrentUser } from '../../../lib/auth'
+import { queryDB } from '../../../lib/db'
 
 export const dynamic = 'force-dynamic'
 // Allow long-running requests (up to 10 minutes for 7 clips)
@@ -234,7 +236,50 @@ async function handleStreamingRequest(req) {
       try {
         const { prompt, model = DEFAULT_MODEL } = await req.json();
         
-        // Check budget before starting
+        // Check user authentication and lives
+        const user = await getCurrentUser(req);
+        if (!user) {
+          sendProgress({ 
+            type: 'error', 
+            error: 'Unauthorized. Please log in to generate videos.',
+          });
+          isClosed = true;
+          clearInterval(keepAliveInterval);
+          controller.close();
+          return;
+        }
+
+        // Check user's remaining lives
+        const users = await queryDB(
+          'SELECT lives_remaining FROM users WHERE id = ?',
+          [user.id]
+        );
+        
+        if (!users || users.length === 0) {
+          sendProgress({ 
+            type: 'error', 
+            error: 'User not found',
+          });
+          isClosed = true;
+          clearInterval(keepAliveInterval);
+          controller.close();
+          return;
+        }
+
+        const livesRemaining = users[0].lives_remaining ?? 3;
+        if (livesRemaining <= 0) {
+          sendProgress({ 
+            type: 'error', 
+            error: 'No lives remaining. You have used all 3 lives (each life = $2 budget).',
+            lives_remaining: 0,
+          });
+          isClosed = true;
+          clearInterval(keepAliveInterval);
+          controller.close();
+          return;
+        }
+
+        // Check budget before starting (for validation, but lives is the real limit)
         const estimatedCost = MAX_CLIPS * COST_PER_CLIP;
         if (estimatedCost > MAX_BUDGET) {
           sendProgress({ 
@@ -266,7 +311,49 @@ async function handleStreamingRequest(req) {
           return;
         }
 
-        await generateClipsWithProgress(prompt, lumaApiKey, sendProgress);
+        // Track if generation was successful
+        let generationSuccess = false;
+        let completedGenerations = [];
+        
+        // Generate video
+        try {
+          await generateClipsWithProgress(prompt, lumaApiKey, (progress) => {
+            sendProgress(progress);
+            if (progress.type === 'complete') {
+              generationSuccess = true;
+            }
+            if (progress.type === 'clip_complete' && progress.clip) {
+              completedGenerations.push(progress.clip);
+            }
+          });
+          
+          // If we have completed generations, consider it successful
+          if (completedGenerations.length > 0) {
+            generationSuccess = true;
+          }
+        } catch (error) {
+          console.error('[Luma Extend] Generation error:', error);
+          sendProgress({
+            type: 'error',
+            error: error.message || 'Generation failed',
+          });
+          throw error;
+        }
+        
+        // Decrement lives only if generation was successful
+        if (generationSuccess && completedGenerations.length > 0) {
+          const newLives = Math.max(0, livesRemaining - 1);
+          await queryDB(
+            'UPDATE users SET lives_remaining = ? WHERE id = ?',
+            [newLives, user.id]
+          );
+          sendProgress({
+            type: 'lives_updated',
+            lives_remaining: newLives,
+            previous_lives: livesRemaining,
+          });
+        }
+        
         isClosed = true;
         clearInterval(keepAliveInterval);
         controller.close();
@@ -301,6 +388,39 @@ async function handleRegularRequest(req) {
   try {
     const { prompt, model = 'ray-2' } = await req.json();
 
+    // Check user authentication and lives
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to generate videos.' },
+        { status: 401 }
+      );
+    }
+
+    // Check user's remaining lives
+    const users = await queryDB(
+      'SELECT lives_remaining FROM users WHERE id = ?',
+      [user.id]
+    );
+    
+    if (!users || users.length === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    const livesRemaining = users[0].lives_remaining ?? 3;
+    if (livesRemaining <= 0) {
+      return NextResponse.json(
+        { 
+          error: 'No lives remaining. You have used all 3 lives (each life = $2 budget).',
+          lives_remaining: 0,
+        },
+        { status: 403 }
+      );
+    }
+
     if (!prompt || prompt.trim().length < 10) {
       return NextResponse.json(
         { error: "Prompt is required and must be at least 10 characters" },
@@ -317,13 +437,37 @@ async function handleRegularRequest(req) {
     }
 
     const generations = [];
-    await generateClipsWithProgress(prompt, lumaApiKey, (progress) => {
-      // For non-streaming, just log progress
-      console.log(`[Luma Extend] ${progress.message || 'Progress'}:`, progress);
-      if (progress.type === 'clip_complete' && progress.clip) {
-        generations.push(progress.clip);
+    let generationSuccess = false;
+    
+    try {
+      await generateClipsWithProgress(prompt, lumaApiKey, (progress) => {
+        // For non-streaming, just log progress
+        console.log(`[Luma Extend] ${progress.message || 'Progress'}:`, progress);
+        if (progress.type === 'clip_complete' && progress.clip) {
+          generations.push(progress.clip);
+        }
+        if (progress.type === 'complete') {
+          generationSuccess = true;
+        }
+      });
+      
+      // If we have generations, consider it successful
+      if (generations.length > 0) {
+        generationSuccess = true;
       }
-    });
+    } catch (error) {
+      console.error('[Luma Extend] Generation error:', error);
+      throw error;
+    }
+
+    // Decrement lives only if generation was successful
+    if (generationSuccess && generations.length > 0) {
+      const newLives = Math.max(0, livesRemaining - 1);
+      await queryDB(
+        'UPDATE users SET lives_remaining = ? WHERE id = ?',
+        [newLives, user.id]
+      );
+    }
 
     // Calculate totals
     const totalSeconds = generations.length * DURATION_PER_GENERATION;
@@ -335,6 +479,7 @@ async function handleRegularRequest(req) {
       totalSeconds: totalSeconds,
       totalClips: generations.length,
       message: `Generated ${generations.length} clips totaling ${totalSeconds} seconds`,
+      lives_remaining: generationSuccess ? Math.max(0, livesRemaining - 1) : livesRemaining,
     });
   } catch (error) {
     console.error('[Luma Extend] Error:', error);

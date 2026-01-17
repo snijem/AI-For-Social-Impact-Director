@@ -29,7 +29,7 @@ export async function POST(req) {
 
     // Find user by email
     const users = await queryDB(
-      'SELECT id, full_name, email, password_hash, status FROM users WHERE email = ?',
+      'SELECT id, full_name, email, password_hash, status, age FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     )
 
@@ -78,6 +78,7 @@ export async function POST(req) {
         id: user.id,
         fullName: user.full_name,
         email: user.email,
+        age: user.age,
       },
     })
   } catch (error) {

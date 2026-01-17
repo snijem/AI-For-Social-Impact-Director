@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function Result() {
   const router = useRouter()
+  const { user } = useAuth()
   const [userScript, setUserScript] = useState('')
   const [videoData, setVideoData] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isDecrementing, setIsDecrementing] = useState(false)
 
   useEffect(() => {
     try {
@@ -372,15 +375,77 @@ export default function Result() {
           transition={{ delay: 0.6 }}
           className="flex gap-4 justify-center flex-wrap"
         >
-          <Link href="/studio">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl"
-            >
-              Create Another Movie 🎬
-            </motion.button>
-          </Link>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={async () => {
+              if (isDecrementing) return
+              
+              // Check if user is logged in
+              if (!user) {
+                alert('Please log in to edit your movie.')
+                router.push('/login?redirect=/result')
+                return
+              }
+
+              // Check if user has lives remaining
+              try {
+                const livesResponse = await fetch('/api/user/lives')
+                if (livesResponse.ok) {
+                  const livesData = await livesResponse.json()
+                  if (livesData.lives_remaining <= 0) {
+                    alert('No lives remaining. You have used all 3 lives (each life = $2 budget).')
+                    return
+                  }
+                }
+              } catch (error) {
+                console.error('Error checking lives:', error)
+                // Continue anyway - let the API handle it
+              }
+
+              // Confirm with user
+              const confirmed = window.confirm(
+                'Editing your movie will use 1 life (each life = $2 budget). Do you want to continue?'
+              )
+              
+              if (!confirmed) return
+
+              setIsDecrementing(true)
+              
+              try {
+                // Decrement 1 life
+                const response = await fetch('/api/user/lives', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ decrement: 1 }),
+                })
+
+                if (response.ok) {
+                  const data = await response.json()
+                  // Navigate to studio
+                  router.push('/studio')
+                } else {
+                  const errorData = await response.json().catch(() => ({}))
+                  if (errorData.error?.includes('No lives remaining')) {
+                    alert('No lives remaining. You have used all 3 lives.')
+                  } else {
+                    alert('Failed to decrement life. Please try again.')
+                  }
+                }
+              } catch (error) {
+                console.error('Error decrementing life:', error)
+                alert('An error occurred. Please try again.')
+              } finally {
+                setIsDecrementing(false)
+              }
+            }}
+            disabled={isDecrementing}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDecrementing ? 'Processing...' : 'Edit my movie ✏️'}
+          </motion.button>
           <Link href="/my-results">
             <motion.button
               whileHover={{ scale: 1.05 }}

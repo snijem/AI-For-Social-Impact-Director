@@ -1,7 +1,10 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 
 const sdgs = [
   {
@@ -125,7 +128,298 @@ const sdgs = [
   }
 ]
 
+// Quiz questions based on the SDG page content
+const quizQuestions = [
+  {
+    question: 'What does SDG stand for?',
+    options: [
+      'Sustainable Development Goals',
+      'Social Development Guidelines',
+      'Sustainable Development Guidelines',
+      'Social Development Goals'
+    ],
+    correctAnswer: 0
+  },
+  {
+    question: 'In what year were the SDGs adopted by all United Nations Member States?',
+    options: ['2010', '2015', '2020', '2012'],
+    correctAnswer: 1
+  },
+  {
+    question: 'How many Sustainable Development Goals are there?',
+    options: ['15', '16', '17', '18'],
+    correctAnswer: 2
+  },
+  {
+    question: 'How many targets are included in the SDGs?',
+    options: ['150', '159', '169', '179'],
+    correctAnswer: 2
+  },
+  {
+    question: 'What is the target year for achieving the SDGs?',
+    options: ['2025', '2030', '2035', '2040'],
+    correctAnswer: 1
+  },
+  {
+    question: 'What are the 5 P\'s of Sustainable Development?',
+    options: [
+      'People, Planet, Prosperity, Peace, Partnership',
+      'People, Planet, Progress, Peace, Partnership',
+      'People, Planet, Prosperity, Progress, Partnership',
+      'People, Planet, Prosperity, Peace, Progress'
+    ],
+    correctAnswer: 0
+  },
+  {
+    question: 'What is SDG #1?',
+    options: ['Zero Hunger', 'No Poverty', 'Quality Education', 'Clean Water'],
+    correctAnswer: 1
+  },
+  {
+    question: 'Which SDG focuses on "Take urgent action to combat climate change"?',
+    options: ['SDG 12', 'SDG 13', 'SDG 14', 'SDG 15'],
+    correctAnswer: 1
+  },
+  {
+    question: 'What does SDG #6 focus on?',
+    options: [
+      'Affordable and Clean Energy',
+      'Clean Water and Sanitation',
+      'Decent Work and Economic Growth',
+      'Industry, Innovation and Infrastructure'
+    ],
+    correctAnswer: 1
+  },
+  {
+    question: 'The SDGs recognize that action in one area will affect outcomes in others. This means they are:',
+    options: [
+      'Independent',
+      'Interconnected',
+      'Isolated',
+      'Incomplete'
+    ],
+    correctAnswer: 1
+  }
+]
+
+function QuizModal({ isOpen, onClose }) {
+  const [currentQuestion, setCurrentQuestion] = useState(0)
+  const [selectedAnswer, setSelectedAnswer] = useState(null)
+  const [score, setScore] = useState(0)
+  const [showResult, setShowResult] = useState(false)
+  const [answeredQuestions, setAnsweredQuestions] = useState([])
+  const router = useRouter()
+  const auth = useAuth()
+  const user = auth?.user || null
+
+  const handleAnswer = (answerIndex) => {
+    if (selectedAnswer !== null) return // Already answered
+    
+    setSelectedAnswer(answerIndex)
+    const isCorrect = answerIndex === quizQuestions[currentQuestion].correctAnswer
+    
+    if (isCorrect) {
+      setScore(score + 1)
+    }
+    
+    setAnsweredQuestions([...answeredQuestions, {
+      questionIndex: currentQuestion,
+      selected: answerIndex,
+      correct: isCorrect
+    }])
+  }
+
+  const handleNext = () => {
+    if (currentQuestion < quizQuestions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1)
+      setSelectedAnswer(null)
+    } else {
+      setShowResult(true)
+    }
+  }
+
+  const handleRestart = () => {
+    setCurrentQuestion(0)
+    setSelectedAnswer(null)
+    setScore(0)
+    setShowResult(false)
+    setAnsweredQuestions([])
+  }
+
+  const handleStartMovie = () => {
+    if (!user) {
+      // Redirect to login page if not logged in
+      router.push('/login?redirect=/studio')
+      onClose()
+    } else {
+      // Navigate to studio if logged in
+      router.push('/studio')
+      onClose()
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        >
+          <div className="p-6">
+            {!showResult ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">Test Your Knowledge</h2>
+                  <button
+                    onClick={onClose}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>Question {currentQuestion + 1} of {quizQuestions.length}</span>
+                    <span>Score: {score}/{currentQuestion + 1}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-blue-600 to-green-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${((currentQuestion + 1) / quizQuestions.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                    {quizQuestions[currentQuestion].question}
+                  </h3>
+                  <div className="space-y-3">
+                    {quizQuestions[currentQuestion].options.map((option, index) => {
+                      const isSelected = selectedAnswer === index
+                      const isCorrect = index === quizQuestions[currentQuestion].correctAnswer
+                      const showCorrect = selectedAnswer !== null
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleAnswer(index)}
+                          disabled={selectedAnswer !== null}
+                          className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                            showCorrect && isCorrect
+                              ? 'bg-green-100 border-green-500 text-green-800'
+                              : showCorrect && isSelected && !isCorrect
+                              ? 'bg-red-100 border-red-500 text-red-800'
+                              : isSelected
+                              ? 'bg-blue-100 border-blue-500 text-blue-800'
+                              : 'bg-gray-50 border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50'
+                          } ${selectedAnswer !== null ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>{option}</span>
+                            {showCorrect && isCorrect && (
+                              <span className="text-green-600 font-bold">✓</span>
+                            )}
+                            {showCorrect && isSelected && !isCorrect && (
+                              <span className="text-red-600 font-bold">✗</span>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleNext}
+                    disabled={selectedAnswer === null}
+                    className={`px-6 py-2 rounded-lg font-semibold ${
+                      selectedAnswer === null
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-green-600 text-white'
+                    }`}
+                  >
+                    {currentQuestion < quizQuestions.length - 1 ? 'Next Question →' : 'See Results'}
+                  </motion.button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center">
+                  <div className="mb-6">
+                    <div className="text-6xl mb-4">
+                      {score === quizQuestions.length ? '🎉' : score >= quizQuestions.length * 0.7 ? '👍' : '📚'}
+                    </div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Quiz Complete!</h2>
+                    <p className="text-xl text-gray-600">
+                      You scored {score} out of {quizQuestions.length}
+                    </p>
+                    <div className="mt-4">
+                      <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+                        {Math.round((score / quizQuestions.length) * 100)}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                    {score === quizQuestions.length ? (
+                      <p className="text-green-700 font-semibold">Perfect score! You're an SDG expert! 🌟</p>
+                    ) : score >= quizQuestions.length * 0.7 ? (
+                      <p className="text-blue-700 font-semibold">Great job! You have a good understanding of the SDGs! 👏</p>
+                    ) : (
+                      <p className="text-orange-700 font-semibold">Good effort! Review the SDG page to learn more! 📖</p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleStartMovie}
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl"
+                    >
+                      🎬 Start Your Movie
+                    </motion.button>
+                    <div className="flex gap-4 justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleRestart}
+                        className="px-6 py-2 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-lg font-semibold"
+                      >
+                        Try Again
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={onClose}
+                        className="px-6 py-2 bg-gray-600 text-white rounded-lg font-semibold"
+                      >
+                        Close
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  )
+}
+
 export default function SDGsPage() {
+  const [isQuizOpen, setIsQuizOpen] = useState(false)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-purple-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
@@ -313,6 +607,23 @@ export default function SDGsPage() {
           </div>
         </motion.div>
 
+        {/* Test Your Knowledge Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.55 }}
+          className="text-center mt-12"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsQuizOpen(true)}
+            className="bg-gradient-to-r from-blue-600 via-green-600 to-purple-600 text-white text-xl font-bold py-4 px-8 rounded-full shadow-lg hover:shadow-xl"
+          >
+            🧠 Test Your Knowledge
+          </motion.button>
+        </motion.div>
+
         {/* Call to Action */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -364,6 +675,9 @@ export default function SDGsPage() {
           </a>
         </motion.div>
       </div>
+
+      {/* Quiz Modal */}
+      <QuizModal isOpen={isQuizOpen} onClose={() => setIsQuizOpen(false)} />
     </div>
   )
 }

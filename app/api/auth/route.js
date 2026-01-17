@@ -48,6 +48,7 @@ export async function GET() {
         id: user.id,
         fullName: user.full_name,
         email: user.email,
+        age: user.age,
       },
     })
   } catch (error) {
