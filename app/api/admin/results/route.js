@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic'
 const ADMIN_EMAILS = [
   'mnijem18@gmail.com',
   'salab261@gmail.com',
-]
+].map(email => email.toLowerCase().trim())
 
 function isAdmin(user) {
-  return user && ADMIN_EMAILS.includes(user.email.toLowerCase())
+  if (!user || !user.email) return false
+  const normalizedUserEmail = user.email.toLowerCase().trim()
+  return ADMIN_EMAILS.includes(normalizedUserEmail)
 }
 
 export async function GET() {
@@ -32,9 +34,21 @@ export async function GET() {
       )
     }
 
+    // Debug logging
+    console.log('[Admin Results] User email:', user.email)
+    console.log('[Admin Results] Admin emails:', ADMIN_EMAILS)
+    console.log('[Admin Results] Is admin:', isAdmin(user))
+
     if (!isAdmin(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Admin privileges required.' },
+        { 
+          error: 'Access denied. Admin privileges required.',
+          debug: {
+            userEmail: user.email,
+            adminEmails: ADMIN_EMAILS,
+            normalizedEmail: user.email?.toLowerCase().trim()
+          }
+        },
         { status: 403 }
       )
     }

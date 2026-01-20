@@ -5,16 +5,18 @@ import { setupDatabase } from '@/lib/setup-db'
 
 export const dynamic = 'force-dynamic'
 
-// Hardcoded list of admin emails
-const ADMIN_EMAILS =  [
+// Hardcoded list of admin emails (normalized to lowercase)
+const ADMIN_EMAILS = [
   'mnijem18@gmail.com',
   'salab261@gmail.com', // Replace with your actual admin email
   // Add more admin emails here
-]
+].map(email => email.toLowerCase().trim())
+
 // Check if user is admin
 function isAdmin(user) {
   if (!user || !user.email) return false
-  return ADMIN_EMAILS.includes(user.email.toLowerCase().trim())
+  const normalizedUserEmail = user.email.toLowerCase().trim()
+  return ADMIN_EMAILS.includes(normalizedUserEmail)
 }
 
 // PUT /api/admin/users/[userId]/lives - Update user lives (admin only)
@@ -32,10 +34,22 @@ export async function PUT(req, { params }) {
       )
     }
 
+    // Debug logging
+    console.log('[Admin Lives] User email:', user.email)
+    console.log('[Admin Lives] Admin emails:', ADMIN_EMAILS)
+    console.log('[Admin Lives] Is admin:', isAdmin(user))
+
     // Check if user is admin
     if (!isAdmin(user)) {
       return NextResponse.json(
-        { error: 'Forbidden. Admin access required.' },
+        { 
+          error: 'Forbidden. Admin access required.',
+          debug: {
+            userEmail: user.email,
+            adminEmails: ADMIN_EMAILS,
+            normalizedEmail: user.email?.toLowerCase().trim()
+          }
+        },
         { status: 403 }
       )
     }
