@@ -47,6 +47,15 @@ export default function Studio() {
     }
   }, [])
 
+  // Save script to localStorage on change (only for studio page, separate from sdg-movie-prompts)
+  useEffect(() => {
+    if (script) {
+      localStorage.setItem('studioScript', script)
+    } else {
+      localStorage.removeItem('studioScript')
+    }
+  }, [script])
+
   // Show loading state while checking authentication
   if (loading) {
     return (
