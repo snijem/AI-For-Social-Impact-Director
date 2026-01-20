@@ -129,16 +129,12 @@ Single continuous shot, stable composition, no looping, no repeated gestures, no
 ]
 
 export default function SDGMoviePromptsPage() {
-  const [storyIdea, setStoryIdea] = useState('')
-  const [subject, setSubject] = useState('a young person')
-  const [setting, setSetting] = useState('a community space')
   const [copiedIndex, setCopiedIndex] = useState(null)
 
   const replacePlaceholders = (text) => {
     return text
-      .replace(/{STORY_IDEA}/g, storyIdea || 'your story about change')
-      .replace(/{SUBJECT}/g, subject || 'a young person')
-      .replace(/{SETTING}/g, setting || 'a community space')
+      .replace(/{SUBJECT}/g, 'a young person')
+      .replace(/{SETTING}/g, 'a community space')
   }
 
   const handleCopyPrompt = async (prompt, index) => {
@@ -191,57 +187,8 @@ export default function SDGMoviePromptsPage() {
             SDG Movie Prompts (9s)
           </h1>
           <p className="text-gray-600 mb-8 text-lg">
-            Professional prompt pack for Luma Labs Dream Machine. Each prompt is optimized for a 9-second continuous shot with minimal glitches.
+            Professional prompt pack. Each prompt is optimized for a 9-second continuous shot with minimal glitches.
           </p>
-
-          {/* Interactive Inputs Section */}
-          <div className="mb-10 p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border-2 border-purple-200">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">MY STORY</h2>
-            <p className="text-gray-600 mb-4 text-sm">Fill these in to customize your prompts:</p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  My Story Idea
-                </label>
-                <textarea
-                  value={storyIdea}
-                  onChange={(e) => setStoryIdea(e.target.value)}
-                  placeholder="e.g., A community comes together to provide clean water for everyone..."
-                  className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                  rows="3"
-                />
-              </div>
-              
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Main Character/Object
-                  </label>
-                  <input
-                    type="text"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g., a young person, a child, Maria"
-                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Location/Setting
-                  </label>
-                  <input
-                    type="text"
-                    value={setting}
-                    onChange={(e) => setSetting(e.target.value)}
-                    placeholder="e.g., a community space, a school, a village"
-                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* How to Win Section */}
           <div className="mb-10 p-6 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border-l-4 border-green-500">
@@ -259,7 +206,6 @@ export default function SDGMoviePromptsPage() {
           <div className="space-y-8">
             {sdgPrompts.map((prompt) => {
               const fullPrompt = replacePlaceholders(prompt.basePrompt) + ' ' + prompt.antiGlitch
-              const storyLink = `This shot represents: ${storyIdea || 'your story about change'}. Subject: ${subject || 'a young person'}. Setting: ${setting || 'a community space'}.`
 
               return (
                 <motion.div
@@ -277,11 +223,6 @@ export default function SDGMoviePromptsPage() {
                     <p className="text-gray-700"><strong>SDG:</strong> {prompt.sdg}</p>
                     <p className="text-gray-700"><strong>Best for:</strong> {prompt.bestFor}</p>
                     <p className="text-gray-700"><strong>9s Beat Plan:</strong> {prompt.beatPlan}</p>
-                    
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                      <p className="text-sm font-semibold text-gray-700 mb-1">Story Link (auto-filled):</p>
-                      <p className="text-sm text-gray-600 italic">{storyLink}</p>
-                    </div>
                   </div>
 
                   <div className="mt-6 space-y-4">
