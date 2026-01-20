@@ -178,18 +178,20 @@ export default function SDGMoviePromptsPage() {
     }
   }, [user, heartsRefreshTrigger])
 
-  // Restore script from localStorage
+  // Restore script from localStorage (use separate key for this page)
   useEffect(() => {
-    const savedScript = localStorage.getItem('studioScript')
+    const savedScript = localStorage.getItem('sdgMovieScript')
     if (savedScript) {
       setScript(savedScript)
     }
   }, [])
 
-  // Save script to localStorage on change
+  // Save script to localStorage on change (use separate key for this page)
   useEffect(() => {
     if (script) {
-      localStorage.setItem('studioScript', script)
+      localStorage.setItem('sdgMovieScript', script)
+    } else {
+      localStorage.removeItem('sdgMovieScript')
     }
   }, [script])
 
