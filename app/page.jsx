@@ -289,7 +289,7 @@ export default function Home() {
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <h3 className="font-bold text-lg mb-2 text-purple-800">Story Requirements:</h3>
                     <ul className="space-y-2 list-disc list-inside">
-                      <li>Write a complete story (at least 60 characters)</li>
+                      <li>Write a complete story (at least 2 characters)</li>
                       <li>Include characters with names</li>
                       <li>Describe the setting (where your story happens)</li>
                       <li>Show the problem that needs solving</li>

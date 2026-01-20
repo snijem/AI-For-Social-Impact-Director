@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Link from 'next/link'
 import { useAuth } from '../contexts/AuthContext'
 import { aiPromptsByAge, getAgeGroup, defaultPrompts } from '../data/aiPrompts'
 
@@ -197,18 +196,6 @@ export default function AIPromptsPanel() {
         )}
       </AnimatePresence>
 
-      {/* Button below AI Prompts */}
-      <div className="mt-6 pt-4 border-t border-blue-200">
-        <Link href="/ai-prompts">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow"
-          >
-            Get More AI Prompts
-          </motion.button>
-        </Link>
-      </div>
     </motion.div>
   )
 }

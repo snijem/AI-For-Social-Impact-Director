@@ -30,9 +30,9 @@ export async function POST(req) {
     const { script } = body
     
     // Validate script
-    if (!script || script.trim().length < 60) {
+    if (!script || script.trim().length < 2) {
       return NextResponse.json(
-        { error: "Script must be at least 60 characters long" },
+        { error: "Script must be at least 2 characters long" },
         { status: 400 }
       )
     }
@@ -125,7 +125,7 @@ export async function GET() {
     method: "Use POST to create a generation job",
     endpoint: "/api/generate",
     requiredBody: {
-      script: "string (minimum 60 characters)"
+      script: "string (minimum 2 characters)"
     },
     response: {
       jobId: "string - Use this to poll job status",

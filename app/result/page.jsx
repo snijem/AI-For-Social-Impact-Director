@@ -208,11 +208,6 @@ export default function Result() {
                     <span>⬇️</span>
                     <span>Download Video</span>
                   </a>
-                  {videoData.is_merged && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      ✅ This is a continuous 1-minute video with {videoData.scenes_count || 0} scenes merged together.
-                    </p>
-                  )}
                 </div>
               </motion.div>
             </div>

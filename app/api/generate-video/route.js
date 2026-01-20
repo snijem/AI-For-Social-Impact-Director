@@ -13,7 +13,7 @@ export async function GET() {
     method: "Use POST to generate videos",
     endpoint: "/api/generate-video",
     requiredBody: {
-      script: "string (minimum 60 characters)"
+      script: "string (minimum 2 characters)"
     },
     apiKeyConfigured: !!process.env.LUMA_API_KEY,
   });
@@ -34,9 +34,9 @@ export async function POST(req) {
       );
     }
     
-    if (!script || script.trim().length < 60) {
+    if (!script || script.trim().length < 2) {
       return NextResponse.json(
-        { error: "Script must be at least 60 characters long" },
+        { error: "Script must be at least 2 characters long" },
         { status: 400 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(req) {
 
     // Create a video prompt from the script
     // Format the script into a concise video generation prompt
-    const videoPrompt = `A 2D animation about Sustainable Development Goals. ${script.substring(0, 500)}. Bright colors, clean animation style, educational and inspiring.`;
+    const videoPrompt = `A 2D animation about Sustainable Development Goals. ${script.substring(0, 500)}. Bright colors, clean animation style, educational and inspiring. Single continuous shot, stable scene, realistic motion, no glitches, no fast movement, no scene cuts.`;
 
     // Step 1: Create a video generation request with Luma API
     
@@ -217,7 +217,7 @@ export async function POST(req) {
         {
           sceneNumber: 1,
           description: script.substring(0, 300),
-          duration: 9, // Matches Luma API duration (9 seconds for ray-2 model)
+          duration: 9, // 9 seconds duration
           visualStyle: "2D animation with bright colors"
         }
       ]

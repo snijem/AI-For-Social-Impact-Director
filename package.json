@@ -13,6 +13,7 @@
     "clean": "node -e \"const fs = require('fs'); const path = require('path'); const dir = '.next'; if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); console.log('Cleaned .next directory'); } else { console.log('.next directory not found'); }\""
   },
   "dependencies": {
+    "@runwayml/sdk": "^3.11.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

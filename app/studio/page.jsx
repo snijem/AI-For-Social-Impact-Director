@@ -93,8 +93,8 @@ export default function Studio() {
         return
       }
 
-      if (script.trim().length < 60) {
-        alert('Please write a longer script! At least 60 characters needed. 📝')
+      if (script.trim().length < 2) {
+        alert('Please write a script! At least 2 characters needed. 📝')
         return
       }
 
@@ -468,7 +468,7 @@ export default function Studio() {
       </div>
 
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-8 flex-wrap gap-3">
           <Link href="/">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -478,26 +478,28 @@ export default function Studio() {
               ← Back to Home
             </motion.button>
           </Link>
-          <Link href="/my-results">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
-            >
-              <span>📋</span>
-              <span>My Results</span>
-            </motion.button>
-          </Link>
-          <Link href="/ai-prompts">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
-            >
-              <span>🤖</span>
-              <span>AI - Prompts</span>
-            </motion.button>
-          </Link>
+          <div className="flex gap-3 flex-wrap">
+            <Link href="/my-results">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
+              >
+                <span>📋</span>
+                <span>My Results</span>
+              </motion.button>
+            </Link>
+            <Link href="/sdg-movie-prompts">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-orange-600 to-red-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
+              >
+                <span>🌍</span>
+                <span>SDG Movie Prompts (9s)</span>
+              </motion.button>
+            </Link>
+          </div>
         </div>
         <motion.h1
           initial={{ opacity: 0, y: -20 }}

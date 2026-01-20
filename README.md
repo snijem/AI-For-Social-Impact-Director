@@ -137,7 +137,7 @@ npm run server
 ## How It Works
 
 1. **Sign Up/Login** - Create an account
-2. **Write Script** - Write your story (at least 60 characters)
+2. **Write Script** - Write your story (at least 2 characters)
 3. **Generate Video** - Click "Generate Animation"
 4. **Watch Progress** - See your video being created in real-time
 5. **View Result** - Watch your completed video!
