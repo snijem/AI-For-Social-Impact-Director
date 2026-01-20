@@ -223,7 +223,7 @@ export default function Studio() {
               storyboard: jobData.results?.storyboard || null,
               // For continuous video: show only merged video, not individual clips
               scenes: [], // Hide individual scenes from user
-              model: 'luma-dream-machine',
+              model: 'runway-ml',
               created_at: jobData.createdAt || new Date().toISOString(),
               video_url: mergedVideoUrl, // Single merged video URL - CRITICAL for result page
               generation_id: jobId, // Use jobId as generation ID
@@ -369,7 +369,7 @@ export default function Studio() {
             ]
           },
           scenes: [],
-          model: 'luma-dream-machine',
+              model: 'runway-ml',
           created_at: new Date().toISOString(),
           video_url: null,
           generation_id: null,
@@ -496,7 +496,7 @@ export default function Studio() {
                 className="bg-gradient-to-r from-orange-600 to-red-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2"
               >
                 <span>🌍</span>
-                <span>SDG Movie Prompts (9s)</span>
+                <span>SDG Movie Prompts (8s)</span>
               </motion.button>
             </Link>
           </div>
@@ -615,7 +615,7 @@ Write your story below:`}
                             : ''
                       }
                     >
-                      {isGenerating ? 'Generating...' : userLives <= 0 ? 'No Lives Remaining ❌' : 'Generate (9s) ✨'}
+                      {isGenerating ? 'Generating...' : userLives <= 0 ? 'No Lives Remaining ❌' : 'Generate (8s) ✨'}
                     </motion.button>
                   </div>
                 </div>

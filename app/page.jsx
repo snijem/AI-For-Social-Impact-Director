@@ -316,7 +316,7 @@ export default function Home() {
 
                   <div className="bg-green-50 p-4 rounded-lg">
                     <h3 className="font-bold text-lg mb-2 text-green-800">What Happens Next:</h3>
-                    <p>Your story will be turned into an AI-generated animation video using Luma Dream Machine. The AI will create a visual representation of your story!</p>
+                    <p>Your story will be turned into an AI-generated animation video using Runway ML. The AI will create a visual representation of your story!</p>
                   </div>
 
                   <div className="flex gap-4 mt-6">
