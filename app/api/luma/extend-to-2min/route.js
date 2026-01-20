@@ -347,6 +347,18 @@ async function handleStreamingRequest(req) {
             'UPDATE users SET lives_remaining = ? WHERE id = ?',
             [newLives, user.id]
           );
+          
+          // Log the lives change
+          const { logLivesChange } = await import('@/lib/lives-logger');
+          await logLivesChange({
+            userId: user.id,
+            previousLives: livesRemaining,
+            newLives: newLives,
+            actionType: 'decrement',
+            reason: 'Luma video extension (2-minute video)',
+            relatedJobId: null
+          });
+          
           sendProgress({
             type: 'lives_updated',
             lives_remaining: newLives,
@@ -467,6 +479,17 @@ async function handleRegularRequest(req) {
         'UPDATE users SET lives_remaining = ? WHERE id = ?',
         [newLives, user.id]
       );
+      
+      // Log the lives change
+      const { logLivesChange } = await import('@/lib/lives-logger');
+      await logLivesChange({
+        userId: user.id,
+        previousLives: livesRemaining,
+        newLives: newLives,
+        actionType: 'decrement',
+        reason: 'Luma video extension (2-minute video)',
+        relatedJobId: null
+      });
     }
 
     // Calculate totals

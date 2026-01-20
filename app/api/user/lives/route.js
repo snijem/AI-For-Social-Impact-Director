@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '../../../../lib/auth'
 import { queryDB } from '../../../../lib/db'
+import { logLivesChange } from '../../../../lib/lives-logger'
 
 /**
  * GET /api/user/lives
@@ -21,14 +22,15 @@ export async function GET(request) {
     const POINTS_PER_LIFE = 100
     const DEFAULT_POINTS = 300 // 3 lives × 100 points
     
+    // Declare variables outside try block so they're accessible in catch block
+    let livesRemaining = 3 // Default lives
+    let pointsRemaining = DEFAULT_POINTS // Default points
+    
     try {
       const users = await queryDB(
         'SELECT lives_remaining FROM users WHERE id = ?',
         [user.id]
       )
-
-      let livesRemaining = 3 // Default lives
-      let pointsRemaining = DEFAULT_POINTS // Default points
       
       if (users && users.length > 0) {
         // Check if column exists (might be null if column doesn't exist)
@@ -122,6 +124,16 @@ export async function POST(request) {
       'UPDATE users SET lives_remaining = ? WHERE id = ?',
       [newLives, user.id]
     )
+
+    // Log the lives change
+    await logLivesChange({
+      userId: user.id,
+      previousLives: currentLives,
+      newLives: newLives,
+      actionType: 'decrement',
+      reason: `Video generation (${pointsToDeduct} points deducted)`,
+      relatedJobId: body.job_id || null
+    })
 
     return NextResponse.json({
       lives_remaining: newLives,

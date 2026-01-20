@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { queryDB } from '@/lib/db'
 import { setupDatabase } from '@/lib/setup-db'
+import { logLivesChange } from '@/lib/lives-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,8 +74,8 @@ export async function PUT(req, { params }) {
       )
     }
 
-    // Check if user exists
-    const users = await queryDB('SELECT id, email, full_name FROM users WHERE id = ?', [userId])
+    // Check if user exists and get current lives
+    const users = await queryDB('SELECT id, email, full_name, lives_remaining FROM users WHERE id = ?', [userId])
     if (!users || users.length === 0) {
       return NextResponse.json(
         { error: 'User not found' },
@@ -82,11 +83,24 @@ export async function PUT(req, { params }) {
       )
     }
 
+    const previousLives = users[0].lives_remaining ?? 3
+    const isReset = livesValue === 3 && previousLives !== 3
+
     // Update user lives
     await queryDB(
       'UPDATE users SET lives_remaining = ? WHERE id = ?',
       [livesValue, userId]
     )
+
+    // Log the lives change
+    await logLivesChange({
+      userId: parseInt(userId),
+      previousLives: previousLives,
+      newLives: livesValue,
+      actionType: isReset ? 'admin_reset' : 'admin_set',
+      reason: isReset ? 'Admin reset to default (3 lives)' : `Admin set to ${livesValue} lives`,
+      adminUserId: user.id
+    })
 
     return NextResponse.json({
       success: true,
