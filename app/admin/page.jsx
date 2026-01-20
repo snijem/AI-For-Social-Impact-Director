@@ -192,6 +192,12 @@ export default function AdminPage() {
             </div>
             <div className="flex gap-3">
               <button
+                onClick={() => router.push('/admin/results')}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md"
+              >
+                📊 View All Results
+              </button>
+              <button
                 onClick={() => {
                   fetchUsers()
                   fetchSubmissions()

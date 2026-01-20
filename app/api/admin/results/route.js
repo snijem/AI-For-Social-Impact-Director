@@ -5,45 +5,44 @@ import { setupDatabase } from '@/lib/setup-db'
 
 export const dynamic = 'force-dynamic'
 
-// Hardcoded list of admin emails (normalized to lowercase)
 const ADMIN_EMAILS = [
   'mnijem18@gmail.com',
-  'salab261@gmail.com', // Replace with your actual admin email
-  // Add more admin emails here
+  'salab261@gmail.com',
 ].map(email => email.toLowerCase().trim())
 
-// Check if user is admin
 function isAdmin(user) {
   if (!user || !user.email) return false
   const normalizedUserEmail = user.email.toLowerCase().trim()
   return ADMIN_EMAILS.includes(normalizedUserEmail)
 }
 
-// GET /api/admin/users - Get all users (admin only)
 export async function GET() {
   try {
     // Ensure database tables exist
-    await setupDatabase()
+    try {
+      await setupDatabase()
+    } catch (setupError) {
+      console.error('Database setup error:', setupError)
+    }
 
-    // Check authentication
     const user = await getCurrentUser()
+    
     if (!user) {
       return NextResponse.json(
-        { error: 'Unauthorized. Please log in.' },
+        { error: 'Not authenticated' },
         { status: 401 }
       )
     }
 
     // Debug logging
-    console.log('[Admin Users] User email:', user.email)
-    console.log('[Admin Users] Admin emails:', ADMIN_EMAILS)
-    console.log('[Admin Users] Is admin:', isAdmin(user))
+    console.log('[Admin Results] User email:', user.email)
+    console.log('[Admin Results] Admin emails:', ADMIN_EMAILS)
+    console.log('[Admin Results] Is admin:', isAdmin(user))
 
-    // Check if user is admin
     if (!isAdmin(user)) {
       return NextResponse.json(
         { 
-          error: 'Forbidden. Admin access required.',
+          error: 'Access denied. Admin privileges required.',
           debug: {
             userEmail: user.email,
             adminEmails: ADMIN_EMAILS,
@@ -54,31 +53,32 @@ export async function GET() {
       )
     }
 
-    // Fetch all users
-    const users = await queryDB(`
+    // Fetch all videos with user information
+    const results = await queryDB(`
       SELECT 
-        id,
-        full_name,
-        email,
-        phone,
-        age,
-        country,
-        lives_remaining,
-        status,
-        created_at,
-        updated_at
-      FROM users
-      ORDER BY created_at DESC
+        uv.id,
+        uv.script,
+        uv.video_url,
+        uv.generation_id,
+        uv.status,
+        uv.storyboard,
+        uv.video_data,
+        uv.created_at,
+        uv.updated_at,
+        u.id as user_id,
+        u.full_name,
+        u.email,
+        u.phone
+      FROM user_videos uv
+      INNER JOIN users u ON uv.user_id = u.id
+      ORDER BY uv.created_at DESC
     `)
 
-    return NextResponse.json({
-      success: true,
-      users: users || [],
-    })
+    return NextResponse.json({ results: results || [] })
   } catch (error) {
-    console.error('Admin users fetch error:', error)
+    console.error('Error fetching results:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch users', details: error.message },
+      { error: 'Failed to fetch results' },
       { status: 500 }
     )
   }
