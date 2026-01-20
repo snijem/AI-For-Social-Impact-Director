@@ -615,7 +615,7 @@ Write your story below:`}
                             : ''
                       }
                     >
-                      {isGenerating ? 'Generating...' : userLives <= 0 ? 'No Lives Remaining ❌' : 'Generate (8s) ✨'}
+                      {isGenerating ? 'Generating...' : userLives <= 0 ? 'No Lives Remaining ❌' : 'Generate (9s) ✨'}
                     </motion.button>
                   </div>
                 </div>
