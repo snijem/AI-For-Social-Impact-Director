@@ -397,7 +397,7 @@ export default function Result() {
                   headers: {
                     'Content-Type': 'application/json',
                   },
-                  body: JSON.stringify({ decrement: 1 }),
+                  body: JSON.stringify({ decrement: 1, job_id: null }),
                 })
 
                 if (response.ok) {

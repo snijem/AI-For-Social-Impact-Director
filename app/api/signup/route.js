@@ -4,6 +4,7 @@ import { connectDB, queryDB } from '@/lib/db'
 import { createSession } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { setupDatabase } from '@/lib/setup-db'
+import { logLivesChange } from '@/lib/lives-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,6 +121,20 @@ export async function POST(req) {
       ])
 
       if (result && result.insertId) {
+        // Log initial lives assignment
+        try {
+          await logLivesChange({
+            userId: result.insertId,
+            previousLives: 0,
+            newLives: 3,
+            actionType: 'initial',
+            reason: 'New user signup - initial 3 lives assigned'
+          })
+        } catch (logError) {
+          console.error('Error logging initial lives:', logError)
+          // Don't fail signup if logging fails
+        }
+
         // Automatically log in the user after signup
         try {
           const { token, expiresAt } = await createSession(result.insertId)

@@ -15,12 +15,38 @@ export default function AdminPage() {
   const [updatingUserId, setUpdatingUserId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [activeTab, setActiveTab] = useState('users') // 'users' or 'submissions'
+  const [activeTab, setActiveTab] = useState('users') // 'users', 'submissions', or 'lives-logs'
+  const [livesLogs, setLivesLogs] = useState([])
+  const [selectedUserId, setSelectedUserId] = useState(null)
 
   useEffect(() => {
     fetchUsers()
     fetchSubmissions()
+    fetchLivesLogs()
   }, [])
+
+  const fetchLivesLogs = async (userId = null) => {
+    try {
+      const url = userId 
+        ? `/api/admin/lives-logs?userId=${userId}&limit=50`
+        : `/api/admin/lives-logs?limit=100`
+      const response = await fetch(url)
+      
+      if (response.status === 401 || response.status === 403) {
+        return
+      }
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to fetch lives logs')
+      }
+
+      const data = await response.json()
+      setLivesLogs(data.logs || [])
+    } catch (err) {
+      console.error('Error fetching lives logs:', err)
+    }
+  }
 
   const fetchSubmissions = async () => {
     try {
@@ -98,6 +124,9 @@ export default function AdminPage() {
           u.id === userId ? { ...u, lives_remaining: newLives } : u
         )
       )
+
+      // Refresh lives logs
+      fetchLivesLogs()
 
       alert(`Successfully updated lives for ${data.user.email}`)
     } catch (err) {
@@ -274,6 +303,19 @@ export default function AdminPage() {
               }`}
             >
               📝 Submissions ({submissions.length})
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('lives-logs')
+                fetchLivesLogs()
+              }}
+              className={`px-6 py-2 font-semibold transition-colors ${
+                activeTab === 'lives-logs'
+                  ? 'text-green-600 border-b-2 border-green-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              💚 Lives Logs ({livesLogs.length})
             </button>
           </div>
         </motion.div>
@@ -495,6 +537,131 @@ export default function AdminPage() {
         </motion.div>
         )}
 
+        {/* Lives Logs Table */}
+        {activeTab === 'lives-logs' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-lg overflow-hidden"
+          >
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">Lives Change History</h2>
+              <div className="flex gap-2">
+                <select
+                  value={selectedUserId || ''}
+                  onChange={(e) => {
+                    const userId = e.target.value ? parseInt(e.target.value) : null
+                    setSelectedUserId(userId)
+                    fetchLivesLogs(userId)
+                  }}
+                  className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                >
+                  <option value="">All Users</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name || u.email} ({u.lives_remaining ?? 3} lives)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    setSelectedUserId(null)
+                    fetchLivesLogs()
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-green-600 to-blue-600 text-white">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Date</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">User</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Previous</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">New</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Change</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Action</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Reason</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Admin</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {livesLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                        No lives logs found
+                      </td>
+                    </tr>
+                  ) : (
+                    livesLogs.map((log, index) => (
+                      <motion.tr
+                        key={log.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="hover:bg-gray-50"
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {formatDate(log.created_at)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {log.user_email || `User #${log.user_id}`}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {log.previous_lives}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {log.new_lives}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                              log.change_amount > 0
+                                ? 'bg-green-100 text-green-800'
+                                : log.change_amount < 0
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {log.change_amount > 0 ? '+' : ''}{log.change_amount}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                              log.action_type === 'admin_reset'
+                                ? 'bg-blue-100 text-blue-800'
+                                : log.action_type === 'admin_set'
+                                ? 'bg-purple-100 text-purple-800'
+                                : log.action_type === 'decrement'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {log.action_type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700 max-w-md">
+                          <div className="truncate" title={log.reason || 'N/A'}>
+                            {log.reason || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          {log.admin_email || (log.admin_user_id ? `Admin #${log.admin_user_id}` : '-')}
+                        </td>
+                      </motion.tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
         {/* Footer Info */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -504,7 +671,9 @@ export default function AdminPage() {
         >
           {activeTab === 'users' 
             ? `Showing ${filteredUsers.length} of ${users.length} users`
-            : `Showing ${submissions.length} submission${submissions.length !== 1 ? 's' : ''}`
+            : activeTab === 'submissions'
+            ? `Showing ${submissions.length} submission${submissions.length !== 1 ? 's' : ''}`
+            : `Showing ${livesLogs.length} lives log${livesLogs.length !== 1 ? 's' : ''}`
           }
         </motion.div>
       </div>
