@@ -17,8 +17,9 @@ export async function GET(request) {
       )
     }
 
-    // Try to get user's lives_remaining from database
-    let livesRemaining = 3 // Default value
+    // Points system: 1 life = 100 points, 3 lives = 300 points total
+    const POINTS_PER_LIFE = 100
+    const DEFAULT_POINTS = 300 // 3 lives × 100 points
     
     try {
       const users = await queryDB(
@@ -26,30 +27,40 @@ export async function GET(request) {
         [user.id]
       )
 
+      let livesRemaining = 3 // Default lives
+      let pointsRemaining = DEFAULT_POINTS // Default points
+      
       if (users && users.length > 0) {
         // Check if column exists (might be null if column doesn't exist)
         if (users[0].hasOwnProperty('lives_remaining')) {
           livesRemaining = users[0].lives_remaining ?? 3
+          // Convert lives to points: points = lives × 100
+          pointsRemaining = livesRemaining * POINTS_PER_LIFE
         } else {
-          // Column doesn't exist yet, use default
+          // Column doesn't exist yet, use defaults
           livesRemaining = 3
+          pointsRemaining = DEFAULT_POINTS
         }
       }
     } catch (dbError) {
       // If column doesn't exist, return default value
       if (dbError.message?.includes('lives_remaining') || dbError.code === 'ER_BAD_FIELD_ERROR') {
-        console.log('lives_remaining column not found, using default value of 3')
+        console.log('lives_remaining column not found, using default value')
         livesRemaining = 3
+        pointsRemaining = DEFAULT_POINTS
       } else {
         // Other database error, log it
         console.error('Database error fetching lives:', dbError.message)
-        // Still return default value to prevent breaking the UI
         livesRemaining = 3
+        pointsRemaining = DEFAULT_POINTS
       }
     }
 
     return NextResponse.json({
       lives_remaining: livesRemaining,
+      points_remaining: pointsRemaining,
+      points_per_life: POINTS_PER_LIFE,
+      total_points: DEFAULT_POINTS,
       user_id: user.id
     })
   } catch (error) {
@@ -64,8 +75,9 @@ export async function GET(request) {
 
 /**
  * POST /api/user/lives
- * Decrement user's lives (used when generating a video)
- * Body: { decrement: number } (default: 1)
+ * Decrement user's points (used when generating a video)
+ * Body: { decrement_points: number } (default: 100) or { decrement: number } for backward compatibility
+ * Each video costs 100 points (1 life)
  */
 export async function POST(request) {
   try {
@@ -79,7 +91,10 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const decrement = body.decrement ?? 1
+    // Support both decrement_points (new) and decrement (old) for backward compatibility
+    const pointsToDeduct = body.decrement_points ?? (body.decrement ?? 1) * 100
+    const POINTS_PER_LIFE = 100
+    const DEFAULT_POINTS = 300
 
     // Get current lives
     const users = await queryDB(
@@ -95,9 +110,14 @@ export async function POST(request) {
     }
 
     const currentLives = users[0].lives_remaining ?? 3
-    const newLives = Math.max(0, currentLives - decrement)
+    const currentPoints = currentLives * POINTS_PER_LIFE
+    
+    // Calculate new points (ensure we don't go below 0)
+    const newPoints = Math.max(0, currentPoints - pointsToDeduct)
+    // Convert back to lives (round down)
+    const newLives = Math.floor(newPoints / POINTS_PER_LIFE)
 
-    // Update lives in database
+    // Update lives in database (stored as lives, but we think in points)
     await queryDB(
       'UPDATE users SET lives_remaining = ? WHERE id = ?',
       [newLives, user.id]
@@ -105,8 +125,12 @@ export async function POST(request) {
 
     return NextResponse.json({
       lives_remaining: newLives,
+      points_remaining: newPoints,
       previous_lives: currentLives,
-      decremented: decrement
+      previous_points: currentPoints,
+      points_deducted: pointsToDeduct,
+      points_per_life: POINTS_PER_LIFE,
+      total_points: DEFAULT_POINTS
     })
   } catch (error) {
     console.error('Error updating user lives:', error)

@@ -9,15 +9,38 @@ export default function AdminPage() {
   const { user } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState([])
+  const [submissions, setSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [updatingUserId, setUpdatingUserId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [activeTab, setActiveTab] = useState('users') // 'users' or 'submissions'
 
   useEffect(() => {
     fetchUsers()
+    fetchSubmissions()
   }, [])
+
+  const fetchSubmissions = async () => {
+    try {
+      const response = await fetch('/api/submissions')
+      
+      if (response.status === 401 || response.status === 403) {
+        return
+      }
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to fetch submissions')
+      }
+
+      const data = await response.json()
+      setSubmissions(data.submissions || [])
+    } catch (err) {
+      console.error('Error fetching submissions:', err)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
@@ -164,12 +187,15 @@ export default function AdminPage() {
                 Admin Dashboard
               </h1>
               <p className="text-gray-600 mt-1">
-                Manage users and their video generation lives
+                Manage users and view script submissions
               </p>
             </div>
             <div className="flex gap-3">
               <button
-                onClick={fetchUsers}
+                onClick={() => {
+                  fetchUsers()
+                  fetchSubmissions()
+                }}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg transition-colors"
               >
                 🔄 Refresh
@@ -208,42 +234,75 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-lg p-4">
-            <div className="text-sm text-gray-600">Total Lives</div>
+            <div className="text-sm text-gray-600">Submissions</div>
             <div className="text-2xl font-bold text-purple-600">
-              {users.reduce((sum, u) => sum + (u.lives_remaining || 0), 0)}
+              {submissions.length}
             </div>
           </div>
         </motion.div>
 
-        {/* Filters */}
+        {/* Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.15 }}
           className="bg-white rounded-xl shadow-lg p-4 mb-6"
         >
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Search by name, email, or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
-              />
-            </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+          <div className="flex gap-4 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-6 py-2 font-semibold transition-colors ${
+                activeTab === 'users'
+                  ? 'text-green-600 border-b-2 border-green-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+              👥 Users ({users.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('submissions')}
+              className={`px-6 py-2 font-semibold transition-colors ${
+                activeTab === 'submissions'
+                  ? 'text-green-600 border-b-2 border-green-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              📝 Submissions ({submissions.length})
+            </button>
           </div>
         </motion.div>
+
+        {/* Filters - Only show for users tab */}
+        {activeTab === 'users' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-xl shadow-lg p-4 mb-6"
+          >
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+          </motion.div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -256,13 +315,78 @@ export default function AdminPage() {
           </motion.div>
         )}
 
+        {/* Submissions Table */}
+        {activeTab === 'submissions' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-lg overflow-hidden"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">ID</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">User</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Email</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Script</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {submissions.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                        No submissions found
+                      </td>
+                    </tr>
+                  ) : (
+                    submissions.map((submission, index) => (
+                      <motion.tr
+                        key={submission.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="hover:bg-gray-50"
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-700">{submission.id}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          {submission.full_name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{submission.email}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700 max-w-md">
+                          <div className="truncate" title={submission.script}>
+                            {submission.script?.substring(0, 100)}
+                            {submission.script?.length > 100 && '...'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+                            {submission.status || 'submitted'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {formatDate(submission.created_at)}
+                        </td>
+                      </motion.tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
         {/* Users Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-xl shadow-lg overflow-hidden"
-        >
+        {activeTab === 'users' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-lg overflow-hidden"
+          >
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-green-600 to-blue-600 text-white">
@@ -363,6 +487,7 @@ export default function AdminPage() {
             </table>
           </div>
         </motion.div>
+        )}
 
         {/* Footer Info */}
         <motion.div
@@ -371,7 +496,10 @@ export default function AdminPage() {
           transition={{ delay: 0.4 }}
           className="mt-6 text-center text-sm text-gray-500"
         >
-          Showing {filteredUsers.length} of {users.length} users
+          {activeTab === 'users' 
+            ? `Showing ${filteredUsers.length} of ${users.length} users`
+            : `Showing ${submissions.length} submission${submissions.length !== 1 ? 's' : ''}`
+          }
         </motion.div>
       </div>
     </div>

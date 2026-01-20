@@ -128,23 +128,6 @@ export default function Result() {
             </motion.div>
           )}
 
-          {/* Debug Info - Remove in production */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
-              <strong>Debug Info:</strong>
-              <ul className="mt-2 space-y-1">
-                <li>videoData exists: {videoData ? 'Yes' : 'No'}</li>
-                <li>Scenes count: {videoData?.scenes?.length || 0}</li>
-                <li>Storyboard exists: {videoData?.storyboard ? 'Yes' : 'No'}</li>
-                {videoData?.scenes && videoData.scenes.length > 0 && (
-                  <li>First scene URL: {videoData.scenes[0].imageUrl ? 'Present' : 'Missing'}</li>
-                )}
-              </ul>
-              <p className="mt-2 text-xs text-gray-600">
-                💡 Check browser console (F12) for detailed logs
-              </p>
-            </div>
-          )}
 
           {/* Generated Video or Scene Images */}
           {videoData?.video_url ? (
@@ -305,7 +288,7 @@ export default function Result() {
                       whileTap={{ scale: 0.95 }}
                       className="bg-purple-600 text-white font-bold py-2 px-6 rounded-full"
                     >
-                      Go to Studio
+                      Go to My Script
                     </motion.button>
                   </Link>
                 )}

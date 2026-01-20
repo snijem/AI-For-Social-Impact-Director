@@ -1,8 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '../../contexts/AuthContext'
+import HeartsLives from '../../components/HeartsLives'
 
 // SDG Prompt Templates
 const sdgPrompts = [
@@ -130,6 +133,65 @@ Single continuous shot, stable composition, no looping, no repeated gestures, no
 
 export default function SDGMoviePromptsPage() {
   const [copiedIndex, setCopiedIndex] = useState(null)
+  const [script, setScript] = useState('')
+  
+  // Video generation state
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [statusMessage, setStatusMessage] = useState('')
+  const [userLives, setUserLives] = useState(3)
+  const [userPoints, setUserPoints] = useState(300) // Points: 1 life = 100 points
+  const [livesLoading, setLivesLoading] = useState(true)
+  const [heartsRefreshTrigger, setHeartsRefreshTrigger] = useState(0)
+  const [abortController, setAbortController] = useState(null)
+  const [livesDecremented, setLivesDecremented] = useState(false) // Guard to prevent multiple decrements
+
+  const router = useRouter()
+  const auth = useAuth()
+  const user = auth?.user || null
+  const loading = auth?.loading || false
+
+  // Fetch user lives and points on mount and when user changes
+  useEffect(() => {
+    if (user) {
+      setLivesLoading(true)
+      fetch('/api/user/lives')
+        .then(res => res.json())
+        .then(data => {
+          if (data.lives_remaining !== undefined) {
+            setUserLives(data.lives_remaining)
+          }
+          if (data.points_remaining !== undefined) {
+            setUserPoints(data.points_remaining)
+          } else if (data.lives_remaining !== undefined) {
+            // Fallback: calculate points from lives
+            setUserPoints(data.lives_remaining * 100)
+          }
+          setLivesLoading(false)
+        })
+        .catch(err => {
+          console.error('Error fetching lives:', err)
+          setLivesLoading(false)
+        })
+    } else {
+      setLivesLoading(false)
+    }
+  }, [user, heartsRefreshTrigger])
+
+  // Restore script from localStorage
+  useEffect(() => {
+    const savedScript = localStorage.getItem('studioScript')
+    if (savedScript) {
+      setScript(savedScript)
+    }
+  }, [])
+
+  // Save script to localStorage on change
+  useEffect(() => {
+    if (script) {
+      localStorage.setItem('studioScript', script)
+    }
+  }, [script])
 
   const replacePlaceholders = (text) => {
     return text
@@ -145,6 +207,205 @@ export default function SDGMoviePromptsPage() {
     } catch (err) {
       console.error('Failed to copy:', err)
     }
+  }
+
+  const handleGenerate = async () => {
+    try {
+      if (!user) {
+        alert('Please log in to generate your video. 🔐')
+        router.push('/login?redirect=/sdg-movie-prompts')
+        return
+      }
+
+      if (script.trim().length < 2) {
+        alert('Please write a script! At least 2 characters needed. 📝')
+        return
+      }
+
+      // Check points (100 points = 1 life, need at least 100 points to generate)
+      const COST_PER_VIDEO = 100
+      if (userPoints < COST_PER_VIDEO) {
+        alert(`Insufficient points! You need ${COST_PER_VIDEO} points to generate a video. You have ${userPoints}/300 points remaining.`)
+        return
+      }
+
+      // Create abort controller for cancellation
+      const controller = new AbortController()
+      setAbortController(controller)
+
+      setIsGenerating(true)
+      setProgress(0)
+      setStatusMessage('Creating generation job...')
+
+      // Step 1: Create generation job
+      const generateResponse = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ script }),
+        signal: controller.signal,
+      })
+
+      if (!generateResponse.ok) {
+        const errorData = await generateResponse.json().catch(() => ({}))
+        if (generateResponse.status === 403) {
+          alert('No lives remaining! You have used all 3 lives.')
+          setHeartsRefreshTrigger(prev => prev + 1)
+          return
+        }
+        throw new Error(errorData.error || 'Failed to create generation job')
+      }
+
+      const { jobId } = await generateResponse.json()
+      setStatusMessage('Job created! Processing video...')
+      setProgress(10)
+
+      // Reset lives decremented flag for new generation
+      setLivesDecremented(false)
+
+      // Step 2: Poll for job status
+      let pollAttempts = 0
+      const maxPollAttempts = 240 // 20 minutes max (240 * 5 seconds)
+      let lastProgress = 10
+
+      const pollInterval = setInterval(async () => {
+        if (pollAttempts >= maxPollAttempts) {
+          clearInterval(pollInterval)
+          setIsGenerating(false)
+          alert('Generation timed out. Please try again.')
+          return
+        }
+
+        pollAttempts++
+
+        try {
+          const statusResponse = await fetch(`/api/job/${jobId}`, {
+            signal: controller.signal,
+          })
+
+          if (!statusResponse.ok) {
+            throw new Error('Failed to fetch job status')
+          }
+
+          const jobData = await statusResponse.json()
+
+          // Update progress
+          const jobProgress = jobData.progress || lastProgress
+          if (jobProgress > lastProgress) {
+            lastProgress = jobProgress
+            setProgress(jobProgress)
+          }
+
+          // Handle both currentStep and current_step for compatibility
+          const statusMsg = jobData.currentStep || jobData.current_step || `Processing... ${jobProgress}%`
+          setStatusMessage(statusMsg)
+
+          // Check if completed
+          if (jobData.status === 'completed') {
+            clearInterval(pollInterval)
+            setProgress(100)
+            setStatusMessage('Video generation complete!')
+
+            // Extract video URL from results object
+            const videoUrl = jobData.results?.video_url || jobData.results?.merged_video_url || jobData.video_url
+            const storyboard = jobData.results?.storyboard || jobData.storyboard
+
+            if (!videoUrl) {
+              clearInterval(pollInterval)
+              setIsGenerating(false)
+              alert('Video generation completed but no video URL was returned. Please check the server logs.')
+              return
+            }
+
+            // Decrement points only once (guard against multiple calls)
+            // Each video costs 100 points (1 life)
+            if (!livesDecremented) {
+              setLivesDecremented(true)
+              try {
+                const livesResponse = await fetch('/api/user/lives', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ decrement_points: 100 }), // Cost: 100 points per video
+                })
+                
+                if (livesResponse.ok) {
+                  const livesData = await livesResponse.json()
+                  setUserLives(livesData.lives_remaining || 0)
+                  setUserPoints(livesData.points_remaining || 0)
+                  setHeartsRefreshTrigger(prev => prev + 1)
+                  console.log(`Points deducted: ${livesData.points_deducted || 100}, Remaining: ${livesData.points_remaining || 0}/300`)
+                } else {
+                  console.error('Failed to decrement points:', await livesResponse.text())
+                }
+              } catch (livesError) {
+                console.error('Error decrementing points:', livesError)
+              }
+            }
+
+            // Save to sessionStorage and redirect
+            sessionStorage.setItem('userScript', script)
+            sessionStorage.setItem('videoData', JSON.stringify({
+              video_url: videoUrl,
+              script: script,
+              storyboard: storyboard,
+              scenes_count: jobData.results?.scenes_count || jobData.scenesCount || 1,
+              is_merged: true,
+              status: 'completed',
+            }))
+
+            setTimeout(() => {
+              router.push('/result')
+            }, 1000)
+          } else if (jobData.status === 'failed') {
+            clearInterval(pollInterval)
+            setIsGenerating(false)
+            const errorMsg = jobData.error || jobData.errorDetails?.error || 'Unknown error'
+            alert(`Generation failed: ${errorMsg}`)
+          }
+        } catch (pollError) {
+          if (pollError.name === 'AbortError') {
+            clearInterval(pollInterval)
+            return
+          }
+          console.error('Polling error:', pollError)
+        }
+      }, 5000) // Poll every 5 seconds
+
+      // Store interval for cleanup
+      setAbortController(controller)
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Generation cancelled')
+        return
+      }
+      console.error('Error generating video:', error)
+      alert(`Failed to generate video: ${error.message}`)
+      setIsGenerating(false)
+    }
+  }
+
+  const handleStopGeneration = () => {
+    if (abortController) {
+      abortController.abort()
+      setAbortController(null)
+    }
+    setIsGenerating(false)
+    setProgress(0)
+    setStatusMessage('')
+  }
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -171,7 +432,7 @@ export default function SDGMoviePromptsPage() {
               whileTap={{ scale: 0.95 }}
               className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow"
             >
-              Studio 🎬
+              My Script 🎬
             </motion.button>
           </Link>
         </motion.div>
@@ -189,6 +450,148 @@ export default function SDGMoviePromptsPage() {
           <p className="text-gray-600 mb-8 text-lg">
             Professional prompt pack. Each prompt is optimized for a 9-second continuous shot with minimal glitches.
           </p>
+
+          {/* Script Input Section */}
+          <div className="mb-10">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-xl shadow-lg p-6 md:p-8"
+            >
+              <h2 className="text-3xl font-bold mb-6 text-gray-800 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Create Your 9s Movie 🎬
+              </h2>
+              
+              {/* Guide Section */}
+              <div className="mb-6 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-l-4 border-purple-500">
+                <h3 className="text-xl font-bold mb-4 text-gray-800">📖 Writing Guide</h3>
+                <div className="space-y-3 text-gray-700">
+                  <div>
+                    <p className="font-semibold mb-2">Your story should include:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li><strong>A clear SDG theme</strong> (like clean oceans, climate action, ending poverty, or water conservation)</li>
+                      <li><strong>Characters</strong> that students can relate to (young people making a difference)</li>
+                      <li><strong>A problem</strong> that needs solving (real-world issue connected to SDGs)</li>
+                      <li><strong>An inspiring solution</strong> or action taken by the characters</li>
+                      <li><strong>A setting</strong> that brings the story to life (school, community, nature, etc.)</li>
+                      <li><strong>A hopeful ending</strong> showing positive change or impact</li>
+                    </ul>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <p className="font-semibold mb-2">💡 Tips for a great 9-second story:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li>Keep it simple and focused on one main idea</li>
+                      <li>Show action and change happening (not just describing)</li>
+                      <li>Make it visual - describe what we can see</li>
+                      <li>Connect to real SDG goals that matter to you</li>
+                      <li>End with hope, inspiration, or a clear message</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct your 9s movie sentence */}
+              <div className="mb-6 text-center">
+                <p className="text-lg font-semibold text-gray-800 italic">
+                  Direct your 9s movie, learn how to summerize your story
+                </p>
+              </div>
+
+              {/* AI Prompts Examples */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-semibold text-gray-700 mb-3">🤖 AI Prompts Examples:</p>
+                <div className="space-y-3">
+                  <div className="bg-white p-3 rounded border-l-4 border-blue-500">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Example 1 - Clean Oceans:</p>
+                    <p className="text-xs text-gray-700 font-mono leading-relaxed">
+                      "A cinematic single-shot scene of a young person picking up plastic bottles on a beach at sunset, warm golden hour lighting. The camera slowly pushes forward as more community members join, filling bags with waste. Realistic human motion, soft depth of field, hopeful atmosphere. Single continuous shot, stable scene, realistic motion, no glitches, no fast movement, no scene cuts."
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded border-l-4 border-green-500">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Example 2 - Climate Action:</p>
+                    <p className="text-xs text-gray-700 font-mono leading-relaxed">
+                      "A cinematic single-shot scene of a young person planting a tree sapling in dry cracked soil, warm natural lighting. The camera slowly zooms in as the sapling grows and green leaves appear. Realistic plant motion, soft depth of field, cinematic color grading, hopeful atmosphere. Single continuous shot, stable scene, realistic motion, no glitches, no fast movement, no scene cuts."
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded border-l-4 border-purple-500">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Example 3 - Zero Hunger:</p>
+                    <p className="text-xs text-gray-700 font-mono leading-relaxed">
+                      "A cinematic single-shot scene of a young person sharing food with others at a community table, soft natural lighting. The camera slowly pans as plates fill with nutritious meals and smiles appear. Realistic human motion, cinematic depth of field, warm atmosphere. Single continuous shot, stable scene, realistic motion, no glitches, no fast movement, no scene cuts."
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold mb-4 text-gray-800">Your Script 📝</h3>
+              <textarea
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                placeholder="Write your story here... Start with your character and setting, then describe the problem, the action taken, and the positive outcome."
+                className="w-full h-64 p-4 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700 font-sans leading-relaxed"
+              />
+              
+              {/* Character count, Lives, and Generate button */}
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">
+                    {script.length} characters
+                  </span>
+                  {user && (
+                    <div className="flex items-center gap-2">
+                      <HeartsLives refreshTrigger={heartsRefreshTrigger} />
+                    </div>
+                  )}
+                </div>
+                
+                {!user && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">🔒</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-yellow-800 mb-1">Login Required</p>
+                        <p className="text-sm text-yellow-700 mb-2">
+                          Please log in to generate your video.
+                        </p>
+                        <Link href="/login?redirect=/sdg-movie-prompts">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                          >
+                            Go to Login →
+                          </motion.button>
+                        </Link>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleGenerate}
+                  disabled={!user || isGenerating || livesLoading || userPoints < 100}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    !user 
+                      ? 'Please log in to generate your video'
+                      : livesLoading
+                      ? 'Loading points...'
+                      : userPoints < 100
+                      ? `Insufficient points. You need 100 points to generate a video. You have ${userPoints}/300 points.`
+                      : ''
+                  }
+                >
+                  {isGenerating ? 'Generating...' : 'Generate (9s) ✨'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
 
           {/* How to Win Section */}
           <div className="mb-10 p-6 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border-l-4 border-green-500">
@@ -337,6 +740,49 @@ export default function SDGMoviePromptsPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Generation Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4"
+          >
+            <div className="text-center mb-6">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full mx-auto mb-4"
+              />
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">Generating Your 9s Video</h3>
+              <p className="text-gray-600">{statusMessage || 'Processing...'}</p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full bg-gradient-to-r from-purple-600 to-pink-600 rounded-full"
+                />
+              </div>
+              <p className="text-sm text-gray-600 mt-2 text-center">{progress}%</p>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleStopGeneration}
+              className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              Cancel Generation
+            </motion.button>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

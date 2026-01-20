@@ -6,19 +6,22 @@ import { useAuth } from '../contexts/AuthContext'
 
 /**
  * HeartsLives Component
- * Displays 3 hearts representing user's remaining lives (each life = $2 budget)
- * Each heart is filled (red) when available, or empty (gray) when used
+ * Displays 3 hearts representing user's remaining lives
+ * Points system: 1 life = 100 points, 3 lives = 300 points total
+ * Each video generation costs 100 points (1 life)
  */
 export default function HeartsLives({ refreshTrigger }) {
   const { user } = useAuth()
   const [lives, setLives] = useState(3) // Default to 3 lives
+  const [points, setPoints] = useState(300) // Default to 300 points
   const [loading, setLoading] = useState(true)
 
-  // Fetch user's remaining lives from API
+  // Fetch user's remaining lives and points from API
   const fetchLives = async () => {
     if (!user) {
       setLoading(false)
       setLives(3) // Default for non-logged-in users
+      setPoints(300)
       return
     }
 
@@ -27,14 +30,17 @@ export default function HeartsLives({ refreshTrigger }) {
       if (response.ok) {
         const data = await response.json()
         setLives(data.lives_remaining ?? 3)
+        setPoints(data.points_remaining ?? (data.lives_remaining ?? 3) * 100)
       } else {
-        // If API fails, default to 3 lives
+        // If API fails, default to 3 lives / 300 points
         console.warn('Failed to fetch lives, using default:', response.status)
         setLives(3)
+        setPoints(300)
       }
     } catch (error) {
       console.error('Error fetching lives:', error)
       setLives(3) // Default to 3 on error
+      setPoints(300)
     } finally {
       setLoading(false)
     }
@@ -67,7 +73,7 @@ export default function HeartsLives({ refreshTrigger }) {
   }
 
   return (
-    <div className="flex items-center gap-2" title={`${lives} of 3 lives remaining`}>
+    <div className="flex items-center gap-2" title={`${points}/300 Runway ML points remaining (${lives}/3 lives)`}>
       {[1, 2, 3].map((heartNumber) => {
         const isFilled = heartNumber <= lives
         
@@ -135,9 +141,9 @@ export default function HeartsLives({ refreshTrigger }) {
         )
       })}
       
-      {/* Lives count text (optional, can be hidden if you want just hearts) */}
+      {/* Points count text */}
       <span className="text-xs text-gray-600 ml-1 font-medium">
-        {lives}/3
+        {points}/300
       </span>
     </div>
   )

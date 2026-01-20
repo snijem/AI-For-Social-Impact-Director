@@ -45,7 +45,12 @@ export async function POST(req) {
       // Continue without user if not authenticated
     }
     
-    // Check user's remaining lives if authenticated
+    // Check user's remaining points if authenticated
+    // Points system: 1 life = 100 points, 3 lives = 300 points total
+    // Each video costs 100 points (1 life)
+    const POINTS_PER_LIFE = 100
+    const COST_PER_VIDEO = 100
+    
     if (user) {
       try {
         const users = await queryDB(
@@ -55,11 +60,15 @@ export async function POST(req) {
         
         if (users && users.length > 0) {
           const livesRemaining = users[0].lives_remaining ?? 3
-          if (livesRemaining <= 0) {
+          const pointsRemaining = livesRemaining * POINTS_PER_LIFE
+          
+          if (pointsRemaining < COST_PER_VIDEO) {
             return NextResponse.json(
               { 
-                error: 'No lives remaining. You have used all 3 lives (each life = $2 budget).',
-                lives_remaining: 0,
+                error: `Insufficient points. You need ${COST_PER_VIDEO} points to generate a video. You have ${pointsRemaining}/300 points remaining.`,
+                lives_remaining: livesRemaining,
+                points_remaining: pointsRemaining,
+                cost_per_video: COST_PER_VIDEO,
               },
               { status: 403 }
             )
@@ -67,7 +76,7 @@ export async function POST(req) {
         }
       } catch (livesError) {
         // If column doesn't exist or error, allow generation (graceful degradation)
-        console.error('Error checking lives:', livesError)
+        console.error('Error checking points:', livesError)
       }
     }
     

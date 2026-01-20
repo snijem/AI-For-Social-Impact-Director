@@ -248,7 +248,7 @@ export default function MyResults() {
                 whileTap={{ scale: 0.95 }}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-xl"
               >
-                Go to Studio 🎬
+                Go to My Script 🎬
               </motion.button>
             </Link>
           </motion.div>
